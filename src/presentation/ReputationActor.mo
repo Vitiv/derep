@@ -5,15 +5,14 @@ import Nat "mo:base/Nat";
 import Text "mo:base/Text";
 import HashMap "mo:base/HashMap";
 import Option "mo:base/Option";
-import Iter "mo:base/Iter";
 import Array "mo:base/Array";
 
 import User "../domain/entities/User";
 import Reputation "../domain/entities/Reputation";
 import Category "../domain/entities/Category";
-import UserRepository "../domain/repositories/UserRepository";
-import ReputationRepository "../domain/repositories/ReputationRepository";
-import CategoryRepository "../domain/repositories/CategoryRepository";
+import UserRepositoryImpl "../data/repositories/UserRepositoryImpl";
+import ReputationRepositoryImpl "../data/repositories/ReputationRepositoryImpl";
+import CategoryRepositoryImpl "../data/repositories/CategoryRepositoryImpl";
 import ICRC72Client "../infrastructure/ICRC72Client";
 import T "../domain/entities/Types";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
@@ -26,40 +25,22 @@ actor class ReputationActor() = Self {
 
     var defaultNamespace : Namespace = "update.reputation.ava";
 
-    // Repositories
-    private var userRepo : ?UserRepository.UserRepository = null;
-    private var reputationRepo : ?ReputationRepository.ReputationRepository = null;
-    private var categoryRepo : ?CategoryRepository.CategoryRepository = null;
+    // Repository implementations
+    private let userRepo = UserRepositoryImpl.UserRepositoryImpl();
+    private let reputationRepo = ReputationRepositoryImpl.ReputationRepositoryImpl();
+    private let categoryRepo = CategoryRepositoryImpl.CategoryRepositoryImpl();
 
     // ICRC72 Client
     private var icrc72Client : ?ICRC72Client.ICRC72ClientImpl = null;
 
     // Use Cases
-    private var useCaseFactory : ?UseCaseFactory.UseCaseFactory = null;
-
-    // Local storage for categories
-    private var categories = HashMap.HashMap<CategoryId, Category.Category>(10, Text.equal, Text.hash);
+    private let useCaseFactory = UseCaseFactory.UseCaseFactory(userRepo, reputationRepo, categoryRepo);
 
     // Storage for notifications
     private var notificationMap = HashMap.HashMap<Namespace, [EventNotification]>(10, Text.equal, Text.hash);
 
-    // Initialize function to set up repositories, ICRC72 client, and use cases
-    public shared func initialize(
-        userRepoPrincipal : Principal,
-        reputationRepoPrincipal : Principal,
-        categoryRepoPrincipal : Principal,
-        hubPrincipal : Principal,
-    ) : async () {
-        userRepo := ?actor (Principal.toText(userRepoPrincipal));
-        reputationRepo := ?actor (Principal.toText(reputationRepoPrincipal));
-        categoryRepo := ?actor (Principal.toText(categoryRepoPrincipal));
-
-        useCaseFactory := ?UseCaseFactory.UseCaseFactory(
-            Option.unwrap(userRepo),
-            Option.unwrap(reputationRepo),
-            Option.unwrap(categoryRepo),
-        );
-
+    // Initialize function to set up ICRC72 client
+    public shared func initialize(hubPrincipal : Principal) : async () {
         icrc72Client := ?ICRC72Client.ICRC72ClientImpl(hubPrincipal, Principal.fromActor(Self));
 
         // Subscribe to reputation events
@@ -83,15 +64,8 @@ actor class ReputationActor() = Self {
             storeNotification(notification);
 
             // Process the notification
-            switch (useCaseFactory) {
-                case (?factory) {
-                    let handleReputationEventUseCase = factory.getHandleReputationEventUseCase();
-                    await handleReputationEventUseCase.execute(notification);
-                };
-                case (null) {
-                    Debug.print("Use case factory not initialized");
-                };
-            };
+            let handleReputationEventUseCase = useCaseFactory.getHandleReputationEventUseCase();
+            handleReputationEventUseCase.execute(notification);
         };
     };
 
@@ -114,99 +88,86 @@ actor class ReputationActor() = Self {
 
     // ManageCategories use case methods
     public shared func createCategory(id : Text, name : Text, description : Text, parentId : ?Text) : async Result.Result<Category.Category, Text> {
-        switch (useCaseFactory) {
-            case (?factory) {
-                let useCase = factory.getManageCategoriesUseCase();
-                let result = await useCase.createCategory(id, name, description, parentId);
-                switch (result) {
-                    case (#ok(category)) {
-                        categories.put(id, category);
-                        #ok(category);
-                    };
-                    case (#err(e)) #err(e);
-                };
-            };
-            case (null) {
-                #err("Use case factory not initialized");
-            };
-        };
+        let useCase = useCaseFactory.getManageCategoriesUseCase();
+        await useCase.createCategory(id, name, description, parentId);
     };
 
-    public query func getCategory(id : CategoryId) : async Result.Result<Category.Category, Text> {
-        switch (categories.get(id)) {
-            case (?category) #ok(category);
-            case (null) #err("Category not found");
-        };
+    public func getCategory(id : CategoryId) : async Result.Result<Category.Category, Text> {
+        let useCase = useCaseFactory.getManageCategoriesUseCase();
+        useCase.getCategory(id);
     };
 
     public shared func updateCategory(category : Category.Category) : async Result.Result<(), Text> {
-        switch (useCaseFactory) {
-            case (?factory) {
-                let useCase = factory.getManageCategoriesUseCase();
-                let result = await useCase.updateCategory(category);
-                switch (result) {
-                    case (#ok(_)) {
-                        categories.put(category.id, category);
-                        #ok(());
-                    };
-                    case (#err(e)) #err(e);
-                };
-            };
-            case (null) {
-                #err("Use case factory not initialized");
-            };
-        };
+        let useCase = useCaseFactory.getManageCategoriesUseCase();
+        useCase.updateCategory(category);
     };
 
-    public query func listCategories() : async [Category.Category] {
-        Iter.toArray(categories.vals());
+    public func listCategories() : async [Category.Category] {
+        let useCase = useCaseFactory.getManageCategoriesUseCase();
+        useCase.listCategories();
     };
 
     // UpdateReputation use case method
     public shared func updateReputation(userId : UserId, categoryId : CategoryId, scoreChange : Int) : async Result.Result<(), Text> {
-        switch (useCaseFactory) {
-            case (?factory) {
-                let useCase = factory.getUpdateReputationUseCase();
-                await useCase.execute(userId, categoryId, scoreChange);
-            };
-            case (null) {
-                #err("Use case factory not initialized");
-            };
-        };
+        let useCase = useCaseFactory.getUpdateReputationUseCase();
+        useCase.execute(userId, categoryId, scoreChange);
     };
 
     // GetUserReputation use case methods
     public shared func getUserReputation(userId : UserId, categoryId : CategoryId) : async Result.Result<Reputation.Reputation, Text> {
-        switch (reputationRepo) {
-            case (?repo) {
-                switch (await repo.getReputation(userId, categoryId)) {
-                    case (?reputation) #ok(reputation);
-                    case (null) #err("Reputation not found");
-                };
-            };
-            case (null) {
-                #err("Reputation repository not initialized");
-            };
-        };
+        let useCase = useCaseFactory.getGetUserReputationUseCase();
+        useCase.execute(userId, categoryId);
     };
 
     public shared func getUserReputations(userId : UserId) : async Result.Result<[Reputation.Reputation], Text> {
-        switch (reputationRepo) {
-            case (?repo) {
-                #ok(await repo.getUserReputations(userId));
-            };
-            case (null) {
-                #err("Reputation repository not initialized");
-            };
-        };
+        let useCase = useCaseFactory.getGetUserReputationUseCase();
+        useCase.getUserReputations(userId);
+    };
+
+    // Additional methods using repository implementations directly
+
+    public shared func createUser(user : User.User) : async Bool {
+        userRepo.createUser(user);
+    };
+
+    public query func getUser(userId : UserId) : async ?User.User {
+        userRepo.getUser(userId);
+    };
+
+    public shared func updateUser(user : User.User) : async Bool {
+        userRepo.updateUser(user);
+    };
+
+    public shared func deleteUser(userId : UserId) : async Bool {
+        userRepo.deleteUser(userId);
+    };
+
+    public query func listUsers() : async [User.User] {
+        userRepo.listUsers();
+    };
+
+    public query func getUsersByUsername(username : Text) : async [User.User] {
+        userRepo.getUsersByUsername(username);
+    };
+
+    public query func getAllReputations() : async [Reputation.Reputation] {
+        reputationRepo.getAllReputations();
+    };
+
+    public query func getTopUsersByCategoryId(categoryId : CategoryId, limit : Nat) : async [(UserId, Int)] {
+        reputationRepo.getTopUsersByCategoryId(categoryId, limit);
+    };
+
+    public query func getTotalUserReputation(userId : UserId) : async Int {
+        reputationRepo.getTotalUserReputation(userId);
     };
 
     // System methods
     system func preupgrade() {
-        // TODO: Implement state preservation logic if needed
+        // Implement state preservation logic if needed
     };
 
     system func postupgrade() {
-        // TODO: Implement state restoration logic if needed
+        // Implement state restoration logic if needed
     };
 };

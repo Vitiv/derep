@@ -1,48 +1,57 @@
 import User "../../domain/entities/User";
-import UserRepository "../../domain/repositories/UserRepository";
 import HashMap "mo:base/HashMap";
-import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
+import Principal "mo:base/Principal";
 
-actor class UserRepositoryImpl() : async UserRepository.UserRepository {
-    private stable var users : [(User.UserId, User.User)] = [];
-    private var userMap = HashMap.HashMap<User.UserId, User.User>(10, Principal.equal, Principal.hash);
+module {
+    public class UserRepositoryImpl() {
+        private var users = HashMap.HashMap<User.UserId, User.User>(10, Principal.equal, Principal.hash);
 
-    public shared func createUser(user : User.User) : async Bool {
-        if (userMap.get(user.id) != null) {
-            return false; // User already exists
-        };
-        userMap.put(user.id, user);
-        true;
-    };
-
-    public query func getUser(userId : User.UserId) : async ?User.User {
-        userMap.get(userId);
-    };
-
-    public shared func updateUser(user : User.User) : async Bool {
-        switch (userMap.get(user.id)) {
-            case (null) { false }; // User doesn't exist
-            case (?_) {
-                userMap.put(user.id, user);
-                true;
+        public func createUser(user : User.User) : Bool {
+            switch (users.get(user.id)) {
+                case (?_) { false }; // User already exists
+                case null {
+                    users.put(user.id, user);
+                    true;
+                };
             };
         };
-    };
 
-    public shared func deleteUser(userId : User.UserId) : async Bool {
-        switch (userMap.remove(userId)) {
-            case (null) { false }; // User doesn't exist
-            case (?_) { true };
+        public func getUser(id : User.UserId) : ?User.User {
+            users.get(id);
         };
-    };
 
-    system func preupgrade() {
-        users := Iter.toArray(userMap.entries());
-    };
+        public func updateUser(user : User.User) : Bool {
+            switch (users.get(user.id)) {
+                case null { false }; // User doesn't exist
+                case (?_) {
+                    users.put(user.id, user);
+                    true;
+                };
+            };
+        };
 
-    system func postupgrade() {
-        userMap := HashMap.fromIter<User.UserId, User.User>(users.vals(), 10, Principal.equal, Principal.hash);
-        users := [];
+        public func deleteUser(id : User.UserId) : Bool {
+            switch (users.remove(id)) {
+                case null { false }; // User doesn't exist
+                case (?_) { true };
+            };
+        };
+
+        public func listUsers() : [User.User] {
+            Iter.toArray(users.vals());
+        };
+
+        // Additional helper method
+        public func getUsersByUsername(username : Text) : [User.User] {
+            Iter.toArray(
+                Iter.filter(
+                    users.vals(),
+                    func(user : User.User) : Bool {
+                        user.username == username;
+                    },
+                )
+            );
+        };
     };
 };

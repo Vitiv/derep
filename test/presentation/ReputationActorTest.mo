@@ -7,14 +7,14 @@ import Iter "mo:base/Iter";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
 import Hash "mo:base/Hash";
-import Nat32 "mo:base/Nat32";
 import Buffer "mo:base/Buffer";
-import T "../../src/domain/entities/Types";
 import User "../../src/domain/entities/User";
 import Category "../../src/domain/entities/Category";
 import Reputation "../../src/domain/entities/Reputation";
+import ReputationActor "../../src/presentation/ReputationActor";
 
 actor class MockedReputationActorTest() {
+
     // Mock ReputationActor
     class MockReputationActor() {
         var categories = HashMap.HashMap<Text, Category.Category>(10, Text.equal, Text.hash);

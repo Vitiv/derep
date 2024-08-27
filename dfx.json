@@ -1,12 +1,15 @@
 {
   "canisters": {
-    "derep_backend": {
+    "derep": {
       "main": "src/presentation/ReputationActor.mo",
       "type": "motoko"
     },
     "mocked_reputation_test": {
-      "main": "test/presentation/ReputationActorTest.mo",
-      "type": "motoko"
+      "main": "test/presentation/Test2.mo",
+      "type": "motoko",
+      "dependencies": [
+        "derep"
+      ]
     }
   },
   "defaults": {

@@ -1,64 +1,86 @@
 import Reputation "../../domain/entities/Reputation";
-import ReputationRepository "../../domain/repositories/ReputationRepository";
 import User "../../domain/entities/User";
 import Category "../../domain/entities/Category";
 import HashMap "mo:base/HashMap";
-import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
-import Array "mo:base/Array";
+import Principal "mo:base/Principal";
 import Text "mo:base/Text";
+import Array "mo:base/Array";
+import Order "mo:base/Order";
+import Int "mo:base/Int";
+import Nat "mo:base/Nat";
 
-actor class ReputationRepositoryImpl() : async ReputationRepository.ReputationRepository {
-    private stable var reputations : [(User.UserId, Category.CategoryId, Reputation.Reputation)] = [];
+module {
+    public class ReputationRepositoryImpl() {
 
-    private func equal(x : (User.UserId, Category.CategoryId), y : (User.UserId, Category.CategoryId)) : Bool {
-        Principal.equal(x.0, y.0) and x.1 == y.1
-    };
+        private func keyEqual(k1 : (User.UserId, Category.CategoryId), k2 : (User.UserId, Category.CategoryId)) : Bool {
+            Principal.equal(k1.0, k2.0) and k1.1 == k2.1
+        };
 
-    private func hash(x : (User.UserId, Category.CategoryId)) : Nat32 {
-        Principal.hash(x.0) ^ Text.hash(x.1);
-    };
+        private func keyHash(k : (User.UserId, Category.CategoryId)) : Nat32 {
+            Principal.hash(k.0) ^ Text.hash(k.1);
+        };
 
-    private var reputationMap = HashMap.HashMap<(User.UserId, Category.CategoryId), Reputation.Reputation>(10, equal, hash);
+        private var reputations = HashMap.HashMap<(User.UserId, Category.CategoryId), Reputation.Reputation>(10, keyEqual, keyHash);
 
-    public shared query func getReputation(userId : User.UserId, categoryId : Category.CategoryId) : async ?Reputation.Reputation {
-        reputationMap.get((userId, categoryId));
-    };
+        public func getReputation(userId : User.UserId, categoryId : Category.CategoryId) : ?Reputation.Reputation {
+            reputations.get((userId, categoryId));
+        };
 
-    public shared func updateReputation(reputation : Reputation.Reputation) : async Bool {
-        reputationMap.put((reputation.userId, reputation.categoryId), reputation);
-        true;
-    };
+        public func updateReputation(reputation : Reputation.Reputation) : Bool {
+            reputations.put((reputation.userId, reputation.categoryId), reputation);
+            true;
+        };
 
-    public shared query func getUserReputations(userId : User.UserId) : async [Reputation.Reputation] {
-        Iter.toArray(Iter.filter(reputationMap.vals(), func(r : Reputation.Reputation) : Bool { Principal.equal(r.userId, userId) }));
-    };
+        public func getUserReputations(userId : User.UserId) : [Reputation.Reputation] {
+            Iter.toArray(
+                Iter.filter(
+                    reputations.vals(),
+                    func(rep : Reputation.Reputation) : Bool {
+                        Principal.equal(rep.userId, userId);
+                    },
+                )
+            );
+        };
 
-    public shared query func getCategoryReputations(categoryId : Category.CategoryId) : async [Reputation.Reputation] {
-        Iter.toArray(Iter.filter(reputationMap.vals(), func(r : Reputation.Reputation) : Bool { r.categoryId == categoryId }));
-    };
+        public func getCategoryReputations(categoryId : Category.CategoryId) : [Reputation.Reputation] {
+            Iter.toArray(
+                Iter.filter(
+                    reputations.vals(),
+                    func(rep : Reputation.Reputation) : Bool {
+                        rep.categoryId == categoryId;
+                    },
+                )
+            );
+        };
 
-    system func preupgrade() {
-        reputations := Array.map<((User.UserId, Category.CategoryId), Reputation.Reputation), (User.UserId, Category.CategoryId, Reputation.Reputation)>(
-            Iter.toArray(reputationMap.entries()),
-            func((key, value) : ((User.UserId, Category.CategoryId), Reputation.Reputation)) : (User.UserId, Category.CategoryId, Reputation.Reputation) {
-                (key.0, key.1, value);
-            },
-        );
-    };
+        public func getAllReputations() : [Reputation.Reputation] {
+            Iter.toArray(reputations.vals());
+        };
 
-    system func postupgrade() {
-        reputationMap := HashMap.fromIter<(User.UserId, Category.CategoryId), Reputation.Reputation>(
-            Array.map<(User.UserId, Category.CategoryId, Reputation.Reputation), ((User.UserId, Category.CategoryId), Reputation.Reputation)>(
-                reputations,
-                func(entry : (User.UserId, Category.CategoryId, Reputation.Reputation)) : ((User.UserId, Category.CategoryId), Reputation.Reputation) {
-                    ((entry.0, entry.1), entry.2);
+        // Additional helper methods
+
+        public func getTopUsersByCategoryId(categoryId : Category.CategoryId, limit : Nat) : [(User.UserId, Int)] {
+            let categoryReps = getCategoryReputations(categoryId);
+            let sorted = Array.sort(
+                categoryReps,
+                func(a : Reputation.Reputation, b : Reputation.Reputation) : Order.Order {
+                    if (a.score > b.score) { #less } else if (a.score < b.score) {
+                        #greater;
+                    } else { #equal };
                 },
-            ).vals(),
-            10,
-            equal,
-            hash,
-        );
-        reputations := [];
+            );
+            let sliceEnd = Nat.min(limit, sorted.size());
+            Array.map<Reputation.Reputation, (User.UserId, Int)>(
+                Iter.toArray(Array.slice<Reputation.Reputation>(sorted, 0, sliceEnd)),
+                func(rep : Reputation.Reputation) : (User.UserId, Int) {
+                    (rep.userId, rep.score);
+                },
+            );
+        };
+        public func getTotalUserReputation(userId : User.UserId) : Int {
+            let userReps = getUserReputations(userId);
+            Array.foldLeft<Reputation.Reputation, Int>(userReps, 0, func(acc, rep) { acc + rep.score });
+        };
     };
 };

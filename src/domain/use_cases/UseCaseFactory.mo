@@ -1,18 +1,16 @@
-import UserRepository "../repositories/UserRepository";
-import ReputationRepository "../repositories/ReputationRepository";
-import CategoryRepository "../repositories/CategoryRepository";
+import UserRepositoryImpl "../../data/repositories/UserRepositoryImpl";
+import ReputationRepositoryImpl "../../data/repositories/ReputationRepositoryImpl";
+import CategoryRepositoryImpl "../../data/repositories/CategoryRepositoryImpl";
 import ManageCategories "./ManageCategories";
 import UpdateReputation "./UpdateReputation";
 import GetUserReputation "./GetUserReputation";
-//import RegisterUser "./RegisterUser";
-//import GetUser "./GetUser";
 import HandleReputationEvent "./HandleReputationEvent";
 
 module {
     public class UseCaseFactory(
-        userRepo : UserRepository.UserRepository,
-        reputationRepo : ReputationRepository.ReputationRepository,
-        categoryRepo : CategoryRepository.CategoryRepository,
+        userRepo : UserRepositoryImpl.UserRepositoryImpl,
+        reputationRepo : ReputationRepositoryImpl.ReputationRepositoryImpl,
+        categoryRepo : CategoryRepositoryImpl.CategoryRepositoryImpl,
     ) {
         public func getManageCategoriesUseCase() : ManageCategories.ManageCategoriesUseCase {
             ManageCategories.ManageCategoriesUseCase(categoryRepo);
@@ -25,14 +23,6 @@ module {
         public func getGetUserReputationUseCase() : GetUserReputation.GetUserReputationUseCase {
             GetUserReputation.GetUserReputationUseCase(reputationRepo);
         };
-
-        //  public func getRegisterUserUseCase() : RegisterUser.RegisterUserUseCase {
-        //      RegisterUser.RegisterUserUseCase(userRepo)
-        //  };
-
-        //  public func getGetUserUseCase() : GetUser.GetUserUseCase {
-        //      GetUser.GetUserUseCase(userRepo)
-        //  };
 
         public func getHandleReputationEventUseCase() : HandleReputationEvent.HandleReputationEventUseCase {
             HandleReputationEvent.HandleReputationEventUseCase(reputationRepo, categoryRepo);
