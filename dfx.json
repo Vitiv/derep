@@ -1,7 +1,11 @@
 {
   "canisters": {
     "derep_backend": {
-      "main": "src/derep_backend/main.mo",
+      "main": "src/presentation/ReputationActor.mo",
+      "type": "motoko"
+    },
+    "mocked_reputation_test": {
+      "main": "test/presentation/ReputationActorTest.mo",
       "type": "motoko"
     }
   },
