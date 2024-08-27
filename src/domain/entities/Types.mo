@@ -49,7 +49,7 @@ module {
     public type EventNotification = {
         id : Nat;
         eventId : Nat;
-        preEventId : ?Nat;
+        prevId : ?Nat;
         timestamp : Nat;
         namespace : Text;
         data : ICRC16;
@@ -58,4 +58,13 @@ module {
         filter : ?Text;
     };
 
+    public type SubscriptionInfo = {
+        namespace : Text; // The namespace of the subscription
+        subscriber : Principal; // Principal ID of the subscriber
+        active : Bool; // Indicates whether the subscription is currently active
+        filters : [Text]; // Currently active filters for this subscription
+        messagesReceived : Nat; // Total number of messages received under this subscription
+        messagesRequested : Nat; // Number of messages explicitly requested or queried by the subscriber
+        messagesConfirmed : Nat; // Number of messages confirmed by the subscriber (acknowledgment of processing or receipt)
+    };
 };
