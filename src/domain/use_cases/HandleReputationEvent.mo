@@ -13,7 +13,7 @@ module {
         reputationRepo : ReputationRepositoryImpl.ReputationRepositoryImpl,
         categoryRepo : CategoryRepositoryImpl.CategoryRepositoryImpl,
     ) {
-        public func execute(notification : T.EventNotification) : () {
+        public func execute(notification : T.EventNotification) : async () {
             Debug.print("Processing event notification: " # debug_show (notification));
 
             // Verify the source of the event (you might want to implement a whitelist check here)
@@ -28,7 +28,7 @@ module {
 
                     switch (user, category, value) {
                         case (?u, ?c, ?v) {
-                            updateReputationWithVerification(u, c, v, notification.namespace);
+                            await updateReputationWithVerification(u, c, v, notification.namespace);
                         };
                         case _ {
                             Debug.print("Incomplete data in event notification");
@@ -77,9 +77,9 @@ module {
             null;
         };
 
-        private func updateReputationWithVerification(user : Principal, categoryId : Text, value : Int, namespace : T.Namespace) : () {
+        private func updateReputationWithVerification(user : Principal, categoryId : Text, value : Int, namespace : T.Namespace) : async () {
             // Verify the category by matching namespace
-            let categories = categoryRepo.listCategories();
+            let categories = await categoryRepo.listCategories();
             let matchingCategory = Array.find(
                 categories,
                 func(cat : Category.Category) : Bool {
@@ -89,7 +89,7 @@ module {
 
             switch (matchingCategory) {
                 case (?_) {
-                    let currentReputation = reputationRepo.getReputation(user, categoryId);
+                    let currentReputation = await reputationRepo.getReputation(user, categoryId);
                     let newReputation = switch (currentReputation) {
                         case (null) {
                             {
@@ -109,7 +109,7 @@ module {
                         };
                     };
 
-                    let success = reputationRepo.updateReputation(newReputation);
+                    let success = await reputationRepo.updateReputation(newReputation);
                     if (not success) {
                         Debug.print("Failed to update reputation");
                     };

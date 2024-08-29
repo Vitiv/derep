@@ -6,30 +6,30 @@ module {
     public class ManageCategoriesUseCase(categoryRepo : CategoryRepositoryImpl.CategoryRepositoryImpl) {
         public func createCategory(id : Category.CategoryId, name : Text, description : Text, parentId : ?Category.CategoryId) : async Result.Result<Category.Category, Text> {
             let newCategory = await Category.createCategory(id, name, description, parentId);
-            if (categoryRepo.createCategory(newCategory)) {
+            if (await categoryRepo.createCategory(newCategory)) {
                 #ok(newCategory);
             } else {
                 #err("Failed to create category");
             };
         };
 
-        public func getCategory(id : Category.CategoryId) : Result.Result<Category.Category, Text> {
-            switch (categoryRepo.getCategory(id)) {
+        public func getCategory(id : Category.CategoryId) : async Result.Result<Category.Category, Text> {
+            switch (await categoryRepo.getCategory(id)) {
                 case (?category) { #ok(category) };
                 case (null) { #err("Category not found") };
             };
         };
 
-        public func updateCategory(category : Category.Category) : Result.Result<(), Text> {
-            if (categoryRepo.updateCategory(category)) {
+        public func updateCategory(category : Category.Category) : async Result.Result<(), Text> {
+            if (await categoryRepo.updateCategory(category)) {
                 #ok(());
             } else {
                 #err("Failed to update category");
             };
         };
 
-        public func listCategories() : [Category.Category] {
-            categoryRepo.listCategories();
+        public func listCategories() : async [Category.Category] {
+            await categoryRepo.listCategories();
         };
     };
 };

@@ -12,7 +12,6 @@ import Nat "mo:base/Nat";
 
 module {
     public class ReputationRepositoryImpl() {
-
         private func keyEqual(k1 : (User.UserId, Category.CategoryId), k2 : (User.UserId, Category.CategoryId)) : Bool {
             Principal.equal(k1.0, k2.0) and k1.1 == k2.1
         };
@@ -23,16 +22,16 @@ module {
 
         private var reputations = HashMap.HashMap<(User.UserId, Category.CategoryId), Reputation.Reputation>(10, keyEqual, keyHash);
 
-        public func getReputation(userId : User.UserId, categoryId : Category.CategoryId) : ?Reputation.Reputation {
+        public func getReputation(userId : User.UserId, categoryId : Category.CategoryId) : async ?Reputation.Reputation {
             reputations.get((userId, categoryId));
         };
 
-        public func updateReputation(reputation : Reputation.Reputation) : Bool {
+        public func updateReputation(reputation : Reputation.Reputation) : async Bool {
             reputations.put((reputation.userId, reputation.categoryId), reputation);
             true;
         };
 
-        public func getUserReputations(userId : User.UserId) : [Reputation.Reputation] {
+        public func getUserReputations(userId : User.UserId) : async [Reputation.Reputation] {
             Iter.toArray(
                 Iter.filter(
                     reputations.vals(),
@@ -43,7 +42,7 @@ module {
             );
         };
 
-        public func getCategoryReputations(categoryId : Category.CategoryId) : [Reputation.Reputation] {
+        public func getCategoryReputations(categoryId : Category.CategoryId) : async [Reputation.Reputation] {
             Iter.toArray(
                 Iter.filter(
                     reputations.vals(),
@@ -54,14 +53,12 @@ module {
             );
         };
 
-        public func getAllReputations() : [Reputation.Reputation] {
+        public func getAllReputations() : async [Reputation.Reputation] {
             Iter.toArray(reputations.vals());
         };
 
-        // Additional helper methods
-
-        public func getTopUsersByCategoryId(categoryId : Category.CategoryId, limit : Nat) : [(User.UserId, Int)] {
-            let categoryReps = getCategoryReputations(categoryId);
+        public func getTopUsersByCategoryId(categoryId : Category.CategoryId, limit : Nat) : async [(User.UserId, Int)] {
+            let categoryReps = await getCategoryReputations(categoryId);
             let sorted = Array.sort(
                 categoryReps,
                 func(a : Reputation.Reputation, b : Reputation.Reputation) : Order.Order {
@@ -78,9 +75,37 @@ module {
                 },
             );
         };
-        public func getTotalUserReputation(userId : User.UserId) : Int {
-            let userReps = getUserReputations(userId);
+
+        public func getTotalUserReputation(userId : User.UserId) : async Int {
+            let userReps = await getUserReputations(userId);
             Array.foldLeft<Reputation.Reputation, Int>(userReps, 0, func(acc, rep) { acc + rep.score });
+        };
+
+        public func clearAllReputations() : async Bool {
+            reputations := HashMap.HashMap<(User.UserId, Category.CategoryId), Reputation.Reputation>(10, keyEqual, keyHash);
+            true;
+        };
+
+        public func deleteUserReputations(userId : User.UserId) : async Bool {
+            var deleted = false;
+            for ((key, _) in reputations.entries()) {
+                if (Principal.equal(key.0, userId)) {
+                    ignore reputations.remove(key);
+                    deleted := true;
+                };
+            };
+            deleted;
+        };
+
+        public func deleteCategoryReputations(categoryId : Category.CategoryId) : async Bool {
+            var deleted = false;
+            for ((key, _) in reputations.entries()) {
+                if (key.1 == categoryId) {
+                    ignore reputations.remove(key);
+                    deleted := true;
+                };
+            };
+            deleted;
         };
     };
 };

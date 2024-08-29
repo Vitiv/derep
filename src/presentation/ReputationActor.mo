@@ -22,8 +22,6 @@ import User "../domain/entities/User";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
 import ICRC72Client "../infrastructure/ICRC72Client";
 
-/// todo add broadcaster canister id bkyz2-fmaaa-aaaaa-qaaaq-cai
-
 actor class ReputationActor() = Self {
     type UserId = User.UserId;
     type CategoryId = Category.CategoryId;
@@ -44,9 +42,9 @@ actor class ReputationActor() = Self {
     let increaseReputationNamespace : Namespace = "increase.reputation.ava";
 
     // Repository implementations
-    private let userRepo = UserRepositoryImpl.UserRepositoryImpl();
-    private let reputationRepo = ReputationRepositoryImpl.ReputationRepositoryImpl();
-    private let categoryRepo = CategoryRepositoryImpl.CategoryRepositoryImpl();
+    private var userRepo = UserRepositoryImpl.UserRepositoryImpl();
+    private var reputationRepo = ReputationRepositoryImpl.ReputationRepositoryImpl();
+    private var categoryRepo = CategoryRepositoryImpl.CategoryRepositoryImpl();
 
     // ICRC72 Client
     private var icrc72Client : ?ICRC72Client.ICRC72ClientImpl = null;
@@ -217,7 +215,7 @@ actor class ReputationActor() = Self {
     // Update reputation
     private func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<(), Text> {
         let updateReputationUseCase = useCaseFactory.getUpdateReputationUseCase();
-        updateReputationUseCase.execute(user, category, value);
+        await updateReputationUseCase.execute(user, category, value);
     };
 
     // Publish reputation increase event
@@ -257,68 +255,88 @@ actor class ReputationActor() = Self {
         await useCase.createCategory(id, name, description, parentId);
     };
 
-    public query func getCategory(id : CategoryId) : async Result.Result<Category.Category, Text> {
+    public func getCategory(id : CategoryId) : async Result.Result<Category.Category, Text> {
         let useCase = useCaseFactory.getManageCategoriesUseCase();
-        useCase.getCategory(id);
+        await useCase.getCategory(id);
     };
 
     public shared func updateCategory(category : Category.Category) : async Result.Result<(), Text> {
         let useCase = useCaseFactory.getManageCategoriesUseCase();
-        useCase.updateCategory(category);
+        await useCase.updateCategory(category);
     };
 
-    public query func listCategories() : async [Category.Category] {
+    public func listCategories() : async [Category.Category] {
         let useCase = useCaseFactory.getManageCategoriesUseCase();
-        useCase.listCategories();
+        await useCase.listCategories();
     };
 
     // GetUserReputation use case methods
-    public query func getUserReputation(userId : UserId, categoryId : CategoryId) : async Result.Result<Reputation.Reputation, Text> {
+    public func getUserReputation(userId : UserId, categoryId : CategoryId) : async Result.Result<Reputation.Reputation, Text> {
         let useCase = useCaseFactory.getGetUserReputationUseCase();
-        useCase.execute(userId, categoryId);
+        await useCase.execute(userId, categoryId);
     };
 
-    public query func getUserReputations(userId : UserId) : async Result.Result<[Reputation.Reputation], Text> {
+    public func getUserReputations(userId : UserId) : async Result.Result<[Reputation.Reputation], Text> {
         let useCase = useCaseFactory.getGetUserReputationUseCase();
-        useCase.getUserReputations(userId);
+        await useCase.getUserReputations(userId);
     };
 
     // Additional methods using repository implementations directly
 
     public shared func createUser(user : User.User) : async Bool {
-        userRepo.createUser(user);
+        await userRepo.createUser(user);
     };
 
-    public query func getUser(userId : UserId) : async ?User.User {
-        userRepo.getUser(userId);
+    public func getUser(userId : UserId) : async ?User.User {
+        await userRepo.getUser(userId);
     };
 
     public shared func updateUser(user : User.User) : async Bool {
-        userRepo.updateUser(user);
+        await userRepo.updateUser(user);
     };
 
-    public shared func deleteUser(userId : UserId) : async Bool {
-        userRepo.deleteUser(userId);
+    public shared func deleteUser(userId : UserId) : async Result.Result<(), Text> {
+        let deleteUserResult = await userRepo.deleteUser(userId);
+        if (not deleteUserResult) {
+            return #err("Failed to delete user");
+        };
+
+        let deleteReputationsResult = await reputationRepo.deleteUserReputations(userId);
+        if (not deleteReputationsResult) {
+            return #err("Failed to delete user reputations");
+        };
+
+        #ok(());
     };
 
-    public query func listUsers() : async [User.User] {
-        userRepo.listUsers();
+    public shared func deleteCategory(categoryId : CategoryId) : async Result.Result<(), Text> {
+        let deleteCategoryUseCase = useCaseFactory.getDeleteCategoryUseCase();
+        let result = await deleteCategoryUseCase.execute(categoryId);
+        if (result) {
+            #ok(());
+        } else {
+            #err("Failed to delete category");
+        };
     };
 
-    public query func getUsersByUsername(username : Text) : async [User.User] {
-        userRepo.getUsersByUsername(username);
+    public func listUsers() : async [User.User] {
+        await userRepo.listUsers();
     };
 
-    public query func getAllReputations() : async [Reputation.Reputation] {
-        reputationRepo.getAllReputations();
+    public func getUsersByUsername(username : Text) : async [User.User] {
+        await userRepo.getUsersByUsername(username);
     };
 
-    public query func getTopUsersByCategoryId(categoryId : CategoryId, limit : Nat) : async [(UserId, Int)] {
-        reputationRepo.getTopUsersByCategoryId(categoryId, limit);
+    public func getAllReputations() : async [Reputation.Reputation] {
+        await reputationRepo.getAllReputations();
     };
 
-    public query func getTotalUserReputation(userId : UserId) : async Int {
-        reputationRepo.getTotalUserReputation(userId);
+    public func getTopUsersByCategoryId(categoryId : CategoryId, limit : Nat) : async [(UserId, Int)] {
+        await reputationRepo.getTopUsersByCategoryId(categoryId, limit);
+    };
+
+    public func getTotalUserReputation(userId : UserId) : async Int {
+        await reputationRepo.getTotalUserReputation(userId);
     };
 
     // System methods
@@ -328,5 +346,34 @@ actor class ReputationActor() = Self {
 
     system func postupgrade() {
         // Implement state restoration logic if needed
+    };
+
+    public shared ({ caller }) func clearAllData() : async Result.Result<(), Text> {
+        // if (Principal.isAnonymous(caller)) {
+        //     return #err("Anonymous principal not allowed");
+        // };
+
+        // Clear user data
+        let userClearResult = await userRepo.clearAllUsers();
+        if (not userClearResult) {
+            return #err("Failed to clear user data");
+        };
+
+        // Clear reputation data
+        let reputationClearResult = await reputationRepo.clearAllReputations();
+        if (not reputationClearResult) {
+            return #err("Failed to clear reputation data");
+        };
+
+        // Clear category data
+        let categoryClearResult = await categoryRepo.clearAllCategories();
+        if (not categoryClearResult) {
+            return #err("Failed to clear category data");
+        };
+
+        // Clear notification map
+        notificationMap := HashMap.HashMap<Namespace, [EventNotification]>(10, Text.equal, Text.hash);
+
+        #ok(());
     };
 };

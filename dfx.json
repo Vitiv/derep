@@ -4,7 +4,7 @@
       "main": "src/presentation/ReputationActor.mo",
       "type": "motoko"
     },
-    "mocked_reputation_test": {
+    "test": {
       "main": "test/test_canister.mo",
       "type": "motoko"
     },
@@ -16,7 +16,7 @@
   "defaults": {
     "build": {
       "args": "",
-      "packtool": ""
+      "packtool": "mops sources"
     }
   },
   "output_env_file": ".env",

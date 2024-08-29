@@ -1,15 +1,16 @@
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
+import Debug "mo:base/Debug";
 import T "../domain/entities/Types";
 
 module {
     type Event = T.Event;
     type EventNotification = T.EventNotification;
     type SubscriptionInfo = T.SubscriptionInfo;
-    public type PublishResult = {
-        #Ok : [Nat];
-        #Err : [PublishError];
-    };
+    public type PublishResult = [{
+        Ok : [Nat];
+        Err : [PublishError];
+    }];
 
     public type PublishError = {
         #GenericError : { message : Text; error_code : Nat };
@@ -49,19 +50,21 @@ module {
                 source = event.source;
                 headers = null;
             }]);
-
-            switch (publishResult) {
-                case (#Ok(ids)) { #ok(ids) };
-                case (#Err(errors)) {
-                    let errorMessage = switch (errors[0]) {
+            Debug.print("ICRC72ClientImpl.publish: response " # debug_show (publishResult));
+            if (publishResult.size() > 0) {
+                if (publishResult[0].Ok.size() > 0) {
+                    return #ok(publishResult[0].Ok);
+                } else {
+                    let errorMessage = switch (publishResult[0].Err[0]) {
                         case (#GenericError(e)) { e.message };
                         case (#Busy) { "Broadcaster is busy" };
                         case (#ImproperId(id)) { "Improper ID: " # id };
                         case (#Unauthorized) { "Unauthorized" };
                     };
-                    #err(errorMessage);
+                    return #err(errorMessage);
                 };
             };
+            #err("No response");
         };
     };
 };

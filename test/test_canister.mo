@@ -7,7 +7,7 @@ import Nat "mo:base/Nat";
 import ICRC72Client "../src/infrastructure/ICRC72Client";
 import T "../src/domain/entities/Types";
 
-actor class TestCanister(reputationActorPrincipal : Principal) = Self {
+actor class TestCanister() = Self {
     type Namespace = T.Namespace;
     type EventNotification = T.EventNotification;
 

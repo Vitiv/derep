@@ -7,7 +7,7 @@ module {
     public class UserRepositoryImpl() {
         private var users = HashMap.HashMap<User.UserId, User.User>(10, Principal.equal, Principal.hash);
 
-        public func createUser(user : User.User) : Bool {
+        public func createUser(user : User.User) : async Bool {
             switch (users.get(user.id)) {
                 case (?_) { false }; // User already exists
                 case null {
@@ -17,11 +17,11 @@ module {
             };
         };
 
-        public func getUser(id : User.UserId) : ?User.User {
+        public func getUser(id : User.UserId) : async ?User.User {
             users.get(id);
         };
 
-        public func updateUser(user : User.User) : Bool {
+        public func updateUser(user : User.User) : async Bool {
             switch (users.get(user.id)) {
                 case null { false }; // User doesn't exist
                 case (?_) {
@@ -31,19 +31,23 @@ module {
             };
         };
 
-        public func deleteUser(id : User.UserId) : Bool {
+        public func clearAllUsers() : async Bool {
+            users := HashMap.HashMap<User.UserId, User.User>(10, Principal.equal, Principal.hash);
+            true;
+        };
+
+        public func deleteUser(id : User.UserId) : async Bool {
             switch (users.remove(id)) {
-                case null { false }; // User doesn't exist
+                case (null) { false };
                 case (?_) { true };
             };
         };
 
-        public func listUsers() : [User.User] {
+        public func listUsers() : async [User.User] {
             Iter.toArray(users.vals());
         };
 
-        // Additional helper method
-        public func getUsersByUsername(username : Text) : [User.User] {
+        public func getUsersByUsername(username : Text) : async [User.User] {
             Iter.toArray(
                 Iter.filter(
                     users.vals(),

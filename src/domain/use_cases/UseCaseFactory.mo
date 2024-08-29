@@ -5,6 +5,8 @@ import ManageCategories "./ManageCategories";
 import UpdateReputation "./UpdateReputation";
 import GetUserReputation "./GetUserReputation";
 import HandleReputationEvent "./HandleReputationEvent";
+import DeleteUserUseCase "./DeleteUserUseCase";
+import DeleteCategoryUseCase "./DeleteCategoryUseCase";
 
 module {
     public class UseCaseFactory(
@@ -26,6 +28,14 @@ module {
 
         public func getHandleReputationEventUseCase() : HandleReputationEvent.HandleReputationEventUseCase {
             HandleReputationEvent.HandleReputationEventUseCase(reputationRepo, categoryRepo);
+        };
+
+        public func getDeleteUserUseCase() : DeleteUserUseCase.DeleteUserUseCase {
+            DeleteUserUseCase.DeleteUserUseCase(userRepo, reputationRepo);
+        };
+
+        public func getDeleteCategoryUseCase() : DeleteCategoryUseCase.DeleteCategoryUseCase {
+            DeleteCategoryUseCase.DeleteCategoryUseCase(categoryRepo, reputationRepo);
         };
     };
 };

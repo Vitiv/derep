@@ -1,10 +1,13 @@
-import User "../../domain/entities/User";
+import User "../entities/User";
 
 module {
-    public type UserRepository = actor {
+    public type UserRepository = {
         createUser : (User.User) -> async Bool;
-        getUser : query (User.UserId) -> async ?User.User;
+        getUser : (User.UserId) -> async ?User.User;
         updateUser : (User.User) -> async Bool;
         deleteUser : (User.UserId) -> async Bool;
+        listUsers : () -> async [User.User];
+        getUsersByUsername : (Text) -> async [User.User];
+        clearAllUsers : () -> async Bool;
     };
 };
