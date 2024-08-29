@@ -1,6 +1,5 @@
 // import VerificationActor "canister:ver";
 
-import Array "mo:base/Array";
 import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import HashMap "mo:base/HashMap";
@@ -12,6 +11,7 @@ import Result "mo:base/Result";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
 
+import ArrayUtils "../../utils/ArrayUtils";
 import CategoryRepositoryImpl "../data/repositories/CategoryRepositoryImpl";
 import ReputationRepositoryImpl "../data/repositories/ReputationRepositoryImpl";
 import UserRepositoryImpl "../data/repositories/UserRepositoryImpl";
@@ -21,6 +21,7 @@ import T "../domain/entities/Types";
 import User "../domain/entities/User";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
 import ICRC72Client "../infrastructure/ICRC72Client";
+import NamespaceCategoryMapper "../domain/services/NamespaceCategoryMapper";
 
 actor class ReputationActor() = Self {
     type UserId = User.UserId;
@@ -29,7 +30,7 @@ actor class ReputationActor() = Self {
     type EventNotification = T.EventNotification;
     type ReputationUpdateInfo = {
         user : Principal;
-        category : Text;
+        category : ?Text;
         value : Int;
         verificationInfo : ?{
             canister : Principal;
@@ -40,11 +41,13 @@ actor class ReputationActor() = Self {
 
     let updateReputationNamespace : Namespace = "update.reputation.ava";
     let increaseReputationNamespace : Namespace = "increase.reputation.ava";
+    let defaultCategory = "common.ava";
 
     // Repository implementations
     private var userRepo = UserRepositoryImpl.UserRepositoryImpl();
     private var reputationRepo = ReputationRepositoryImpl.ReputationRepositoryImpl();
     private var categoryRepo = CategoryRepositoryImpl.CategoryRepositoryImpl();
+    private let namespaceCategoryMapper = NamespaceCategoryMapper.NamespaceCategoryMapper(categoryRepo);
 
     // ICRC72 Client
     private var icrc72Client : ?ICRC72Client.ICRC72ClientImpl = null;
@@ -92,7 +95,7 @@ actor class ReputationActor() = Self {
         switch (notificationMap.get(namespace)) {
             case null notificationMap.put(namespace, [notification]);
             case (?existingNotifications) {
-                let newList = Array.append(existingNotifications, [notification]);
+                let newList = ArrayUtils.appendArray(existingNotifications, [notification]);
                 notificationMap.put(namespace, newList);
             };
         };
@@ -104,17 +107,40 @@ actor class ReputationActor() = Self {
             let parseResult = parseReputationUpdateNotification(notification);
             switch (parseResult) {
                 case (#ok(data)) {
+                    // Get categories from namespace
+                    let categories = await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace);
+
+                    let categoriesToUpdate = if (categories.size() > 0) {
+                        categories;
+                    } else {
+                        // if no category found
+                        switch (data.category) {
+                            case null { [] };
+                            case (?cat) { [cat] };
+                        };
+                    };
+
                     // Validate the data
                     if (await validateReputationUpdate(data)) {
-                        // Update reputation
-                        let updateResult = await updateReputation(data.user, data.category, data.value);
-                        switch (updateResult) {
-                            case (#ok(_)) {
-                                // Publish event about new reputation
-                                await publishReputationIncreaseEvent(data);
-                            };
-                            case (#err(error)) {
-                                Debug.print("Failed to update reputation: " # error);
+                        // Update reputation for all matched categories
+                        for (category in categoriesToUpdate.vals()) {
+                            let updateResult = await updateReputation(data.user, category, data.value);
+                            switch (updateResult) {
+                                case (#ok(_)) {
+                                    // Update parent categories
+                                    let parentCategories = await namespaceCategoryMapper.getParentCategories(category);
+                                    for (parentCategory in parentCategories.vals()) {
+                                        ignore await updateReputation(data.user, parentCategory, data.value);
+                                    };
+
+                                    // Publish event about new reputation
+                                    await publishReputationIncreaseEvent({
+                                        data with category = ?category
+                                    });
+                                };
+                                case (#err(error)) {
+                                    Debug.print("Failed to update reputation for category " # category # ": " # error);
+                                };
                             };
                         };
                     } else {
@@ -156,7 +182,7 @@ actor class ReputationActor() = Self {
                 };
 
                 switch (user, category, value, verificationCanister, verificationMethod, documentId) {
-                    case (?u, ?c, ?v, ?vc, ?vm, ?d) {
+                    case (?u, c, ?v, ?vc, ?vm, ?d) {
                         #ok({
                             user = u;
                             category = c;
@@ -181,13 +207,6 @@ actor class ReputationActor() = Self {
 
     // Validate reputation update
     private func validateReputationUpdate(data : ReputationUpdateInfo) : async Bool {
-        // Check if the category exists
-        let categoryResult = await getCategory(data.category);
-        switch (categoryResult) {
-            case (#err(_)) { return false };
-            case (#ok(_)) {};
-        };
-
         // Check if the user exists
         let userOpt = await getUser(data.user);
         switch (userOpt) {
@@ -198,18 +217,20 @@ actor class ReputationActor() = Self {
         // Call the verification method on the verification canister
         switch (data.verificationInfo) {
             case (null) { return false };
-            case (?info) {
+            case (?_) {
                 try {
                     // let verificationActor = actor (Principal.toText(info.canister)) : actor {
                     //     verify : (Nat) -> async Bool;
                     // };
-                    return true; //await VerificationActor.verify(info.documentId);
+                    return true; // await verificationActor.verify(info.documentId);
                 } catch (error) {
                     Debug.print("Error calling verification method: " # Error.message(error));
                     return false;
                 };
             };
         };
+
+        true;
     };
 
     // Update reputation
@@ -220,6 +241,7 @@ actor class ReputationActor() = Self {
 
     // Publish reputation increase event
     private func publishReputationIncreaseEvent(data : ReputationUpdateInfo) : async () {
+        let categoryIncrease = Option.get(data.category, defaultCategory);
         switch (icrc72Client) {
             case (?client) {
                 let event : T.Event = {
@@ -230,7 +252,7 @@ actor class ReputationActor() = Self {
                     headers = null;
                     data = #Map([
                         ("user", #Principal(data.user)),
-                        ("category", #Text(data.category)),
+                        ("category", #Text(categoryIncrease)),
                         ("value", #Int(data.value)),
                     ]);
                     source = Principal.fromActor(Self);
@@ -348,7 +370,7 @@ actor class ReputationActor() = Self {
         // Implement state restoration logic if needed
     };
 
-    public shared ({ caller }) func clearAllData() : async Result.Result<(), Text> {
+    public func clearAllData() : async Result.Result<(), Text> {
         // if (Principal.isAnonymous(caller)) {
         //     return #err("Anonymous principal not allowed");
         // };

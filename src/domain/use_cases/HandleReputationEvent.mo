@@ -7,6 +7,7 @@ import Time "mo:base/Time";
 import Category "../entities/Category";
 import ReputationRepositoryImpl "../../data/repositories/ReputationRepositoryImpl";
 import CategoryRepositoryImpl "../../data/repositories/CategoryRepositoryImpl";
+import ArrayUtils "../../../utils/ArrayUtils";
 
 module {
     public class HandleReputationEventUseCase(
@@ -89,35 +90,62 @@ module {
 
             switch (matchingCategory) {
                 case (?_) {
-                    let currentReputation = await reputationRepo.getReputation(user, categoryId);
-                    let newReputation = switch (currentReputation) {
-                        case (null) {
-                            {
-                                userId = user;
-                                categoryId = categoryId;
-                                score = value;
-                                lastUpdated = Time.now();
-                            };
-                        };
-                        case (?rep) {
-                            {
-                                userId = rep.userId;
-                                categoryId = rep.categoryId;
-                                score = rep.score + value;
-                                lastUpdated = Time.now();
-                            };
-                        };
-                    };
+                    // Get all parent categories, including the current one
+                    let categoriesToUpdate = ArrayUtils.pushToArray(categoryId, await getParentCategories(categoryId));
 
-                    let success = await reputationRepo.updateReputation(newReputation);
-                    if (not success) {
-                        Debug.print("Failed to update reputation");
+                    for (currentCategoryId in categoriesToUpdate.vals()) {
+                        let currentReputation = await reputationRepo.getReputation(user, currentCategoryId);
+                        let newReputation = switch (currentReputation) {
+                            case (null) {
+                                {
+                                    userId = user;
+                                    categoryId = currentCategoryId;
+                                    score = value;
+                                    lastUpdated = Time.now();
+                                };
+                            };
+                            case (?rep) {
+                                {
+                                    userId = rep.userId;
+                                    categoryId = rep.categoryId;
+                                    score = rep.score + value;
+                                    lastUpdated = Time.now();
+                                };
+                            };
+                        };
+
+                        let success = await reputationRepo.updateReputation(newReputation);
+                        if (not success) {
+                            Debug.print("Failed to update reputation for category " # currentCategoryId);
+                        };
                     };
                 };
                 case (null) {
                     Debug.print("No category found for namespace: " # namespace);
                 };
             };
+        };
+
+        private func getParentCategories(categoryId : Category.CategoryId) : async [Category.CategoryId] {
+            var parentCategories : [Category.CategoryId] = [];
+            var currentCategoryId = categoryId;
+
+            label a loop {
+                switch (await categoryRepo.getCategory(currentCategoryId)) {
+                    case null { break a };
+                    case (?category) {
+                        switch (category.parentId) {
+                            case null { break a };
+                            case (?parentId) {
+                                parentCategories := ArrayUtils.pushToArray(parentId, parentCategories);
+                                currentCategoryId := parentId;
+                            };
+                        };
+                    };
+                };
+            };
+
+            parentCategories;
         };
     };
 };
