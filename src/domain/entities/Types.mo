@@ -67,4 +67,20 @@ module {
         messagesRequested : Nat; // Number of messages explicitly requested or queried by the subscriber
         messagesConfirmed : Nat; // Number of messages confirmed by the subscriber (acknowledgment of processing or receipt)
     };
+
+    public type ReputationUpdateInfo = {
+        user : Principal;
+        category : ?Text;
+        value : Int;
+        verificationInfo : ?{
+            canister : Principal;
+            method : Text;
+            documentId : Nat;
+        };
+    };
+
+    public let UPDATE_REPUTATION_NAMESPACE : Namespace = "update.reputation.ava";
+    public let INCREASE_REPUTATION_NAMESPACE : Namespace = "increase.reputation.ava";
+    public let DEFAULT_CATEGORY = "common.ava";
+
 };

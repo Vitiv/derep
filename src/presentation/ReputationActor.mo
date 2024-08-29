@@ -1,20 +1,14 @@
-// import VerificationActor "canister:ver";
-
 import Debug "mo:base/Debug";
-import Error "mo:base/Error";
-import HashMap "mo:base/HashMap";
 import Int "mo:base/Int";
 import Nat "mo:base/Nat";
-import Option "mo:base/Option";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
 import Text "mo:base/Text";
-import Time "mo:base/Time";
 
-import ArrayUtils "../../utils/ArrayUtils";
 import CategoryRepositoryImpl "../data/repositories/CategoryRepositoryImpl";
 import ReputationRepositoryImpl "../data/repositories/ReputationRepositoryImpl";
 import UserRepositoryImpl "../data/repositories/UserRepositoryImpl";
+import NotificationRepositoryImpl "../data/repositories/NotificationRepositoryImpl";
 import Category "../domain/entities/Category";
 import Reputation "../domain/entities/Reputation";
 import T "../domain/entities/Types";
@@ -28,35 +22,24 @@ actor class ReputationActor() = Self {
     type CategoryId = Category.CategoryId;
     type Namespace = T.Namespace;
     type EventNotification = T.EventNotification;
-    type ReputationUpdateInfo = {
-        user : Principal;
-        category : ?Text;
-        value : Int;
-        verificationInfo : ?{
-            canister : Principal;
-            method : Text;
-            documentId : Nat;
-        };
-    };
+    type ReputationUpdateInfo = T.ReputationUpdateInfo;
 
-    let updateReputationNamespace : Namespace = "update.reputation.ava";
-    let increaseReputationNamespace : Namespace = "increase.reputation.ava";
-    let defaultCategory = "common.ava";
+    let updateReputationNamespace : Namespace = T.UPDATE_REPUTATION_NAMESPACE;
+    // let increaseReputationNamespace : Namespace = T.INCREASE_REPUTATION_NAMESPACE;
+    // let defaultCategory = T.DEFAULT_CATEGORY;
 
     // Repository implementations
     private var userRepo = UserRepositoryImpl.UserRepositoryImpl();
     private var reputationRepo = ReputationRepositoryImpl.ReputationRepositoryImpl();
     private var categoryRepo = CategoryRepositoryImpl.CategoryRepositoryImpl();
+    private var notificationRepo = NotificationRepositoryImpl.NotificationRepositoryImpl();
     private let namespaceCategoryMapper = NamespaceCategoryMapper.NamespaceCategoryMapper(categoryRepo);
 
     // ICRC72 Client
     private var icrc72Client : ?ICRC72Client.ICRC72ClientImpl = null;
 
     // Use Cases
-    private let useCaseFactory = UseCaseFactory.UseCaseFactory(userRepo, reputationRepo, categoryRepo);
-
-    // Storage for notifications
-    private var notificationMap = HashMap.HashMap<Namespace, [EventNotification]>(10, Text.equal, Text.hash);
+    private var useCaseFactory : ?UseCaseFactory.UseCaseFactory = null;
 
     // Initialize function to set up ICRC72 client
     public shared func initialize() : async () {
@@ -66,6 +49,14 @@ actor class ReputationActor() = Self {
         // Subscribe to reputation events
         switch (icrc72Client) {
             case (?client) {
+                useCaseFactory := ?UseCaseFactory.UseCaseFactory(
+                    userRepo,
+                    reputationRepo,
+                    categoryRepo,
+                    notificationRepo,
+                    client,
+                    namespaceCategoryMapper,
+                );
                 ignore await client.subscribe(updateReputationNamespace);
                 Debug.print("Subscribed to " # updateReputationNamespace);
             };
@@ -76,231 +67,138 @@ actor class ReputationActor() = Self {
     };
 
     // Handle incoming reputation events
-    public func icrc72_handle_notification(notifications : [EventNotification]) : async () {
-        Debug.print("Notifications received: " # Nat.toText(notifications.size()));
-        for (notification in notifications.vals()) {
-            Debug.print("Processing notification: " # debug_show (notification));
-
-            // Store the notification
-            storeNotification(notification);
-
-            // Process the notification
-            await processNotification(notification);
-        };
-    };
-
-    // Store a notification
-    private func storeNotification(notification : EventNotification) {
-        let namespace = notification.namespace;
-        switch (notificationMap.get(namespace)) {
-            case null notificationMap.put(namespace, [notification]);
-            case (?existingNotifications) {
-                let newList = ArrayUtils.appendArray(existingNotifications, [notification]);
-                notificationMap.put(namespace, newList);
-            };
-        };
-    };
-
-    // Process a notification
-    private func processNotification(notification : EventNotification) : async () {
-        if (notification.namespace == updateReputationNamespace) {
-            let parseResult = parseReputationUpdateNotification(notification);
-            switch (parseResult) {
-                case (#ok(data)) {
-                    // Get categories from namespace
-                    let categories = await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace);
-
-                    let categoriesToUpdate = if (categories.size() > 0) {
-                        categories;
-                    } else {
-                        // if no category found
-                        switch (data.category) {
-                            case null { [] };
-                            case (?cat) { [cat] };
-                        };
-                    };
-
-                    // Validate the data
-                    if (await validateReputationUpdate(data)) {
-                        // Update reputation for all matched categories
-                        for (category in categoriesToUpdate.vals()) {
-                            let updateResult = await updateReputation(data.user, category, data.value);
-                            switch (updateResult) {
-                                case (#ok(_)) {
-                                    // Update parent categories
-                                    let parentCategories = await namespaceCategoryMapper.getParentCategories(category);
-                                    for (parentCategory in parentCategories.vals()) {
-                                        ignore await updateReputation(data.user, parentCategory, data.value);
-                                    };
-
-                                    // Publish event about new reputation
-                                    await publishReputationIncreaseEvent({
-                                        data with category = ?category
-                                    });
-                                };
-                                case (#err(error)) {
-                                    Debug.print("Failed to update reputation for category " # category # ": " # error);
-                                };
-                            };
-                        };
-                    } else {
-                        Debug.print("Invalid reputation update data");
-                    };
-                };
-                case (#err(error)) {
-                    Debug.print("Failed to parse notification: " # error);
+    public func icrc72_handle_notification(notifications : [T.EventNotification]) : async () {
+        switch (useCaseFactory) {
+            case (?factory) {
+                let handleNotificationUseCase = factory.getHandleNotificationUseCase();
+                let notificationUseCase = factory.getNotificationUseCase();
+                for (notification in notifications.vals()) {
+                    await notificationUseCase.storeNotification(notification);
+                    await handleNotificationUseCase.execute(notification);
                 };
             };
-        };
-    };
-
-    // Parse reputation update notification
-    private func parseReputationUpdateNotification(notification : EventNotification) : Result.Result<ReputationUpdateInfo, Text> {
-        switch (notification.data) {
-            case (#Map(dataMap)) {
-                var user : ?Principal = null;
-                var category : ?Text = null;
-                var value : ?Int = null;
-                var verificationCanister : ?Principal = null;
-                var verificationMethod : ?Text = null;
-                var documentId : ?Nat = null;
-
-                for ((key, val) in dataMap.vals()) {
-                    switch (key, val) {
-                        case ("user", #Principal(p)) { user := ?p };
-                        case ("category", #Text(t)) { category := ?t };
-                        case ("value", #Int(i)) { value := ?i };
-                        case ("verificationCanister", #Principal(p)) {
-                            verificationCanister := ?p;
-                        };
-                        case ("verificationMethod", #Text(t)) {
-                            verificationMethod := ?t;
-                        };
-                        case ("documentId", #Nat(n)) { documentId := ?n };
-                        case _ { /* Ignore other fields */ };
-                    };
-                };
-
-                switch (user, category, value, verificationCanister, verificationMethod, documentId) {
-                    case (?u, c, ?v, ?vc, ?vm, ?d) {
-                        #ok({
-                            user = u;
-                            category = c;
-                            value = v;
-                            verificationInfo = ?{
-                                canister = vc;
-                                method = vm;
-                                documentId = d;
-                            };
-                        });
-                    };
-                    case _ {
-                        #err("Invalid or incomplete data in reputation update notification");
-                    };
-                };
-            };
-            case _ {
-                #err("Unexpected data format in reputation update notification");
+            case (null) {
+                Debug.print("UseCaseFactory not initialized");
             };
         };
-    };
-
-    // Validate reputation update
-    private func validateReputationUpdate(data : ReputationUpdateInfo) : async Bool {
-        // Check if the user exists
-        let userOpt = await getUser(data.user);
-        switch (userOpt) {
-            case null { return false };
-            case (?_) {};
-        };
-
-        // Call the verification method on the verification canister
-        switch (data.verificationInfo) {
-            case (null) { return false };
-            case (?_) {
-                try {
-                    // let verificationActor = actor (Principal.toText(info.canister)) : actor {
-                    //     verify : (Nat) -> async Bool;
-                    // };
-                    return true; // await verificationActor.verify(info.documentId);
-                } catch (error) {
-                    Debug.print("Error calling verification method: " # Error.message(error));
-                    return false;
-                };
-            };
-        };
-
-        true;
     };
 
     // Update reputation
-    private func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<(), Text> {
-        let updateReputationUseCase = useCaseFactory.getUpdateReputationUseCase();
-        await updateReputationUseCase.execute(user, category, value);
-    };
-
-    // Publish reputation increase event
-    private func publishReputationIncreaseEvent(data : ReputationUpdateInfo) : async () {
-        let categoryIncrease = Option.get(data.category, defaultCategory);
-        switch (icrc72Client) {
-            case (?client) {
-                let event : T.Event = {
-                    id = 1;
-                    prevId = null;
-                    timestamp = Int.abs(Time.now());
-                    namespace = increaseReputationNamespace;
-                    headers = null;
-                    data = #Map([
-                        ("user", #Principal(data.user)),
-                        ("category", #Text(categoryIncrease)),
-                        ("value", #Int(data.value)),
-                    ]);
-                    source = Principal.fromActor(Self);
+    public shared func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<(), Text> {
+        switch (useCaseFactory) {
+            case (?factory) {
+                let updateReputationUseCase = factory.getUpdateReputationUseCase();
+                let result = await updateReputationUseCase.execute(user, category, value);
+                switch (result) {
+                    case (#ok(_)) {
+                        let publishEventUseCase = factory.getPublishEventUseCase();
+                        await publishEventUseCase.publishReputationIncreaseEvent(
+                            {
+                                user = user;
+                                category = ?category;
+                                value = value;
+                                verificationInfo = null;
+                            },
+                            Principal.fromActor(Self),
+                        );
+                    };
+                    case _ {};
                 };
-                ignore await client.publish(event);
-                Debug.print("Published reputation increase event");
+                result;
             };
             case (null) {
-                Debug.print("ICRC72 client not initialized, couldn't publish event");
+                #err("UseCaseFactory not initialized");
             };
         };
     };
 
     // Get notifications for a specific namespace
-    public query func getNotifications(namespace : Namespace) : async [EventNotification] {
-        Option.get(notificationMap.get(namespace), []);
+    public func getNotifications(namespace : T.Namespace) : async [T.EventNotification] {
+        switch (useCaseFactory) {
+            case (?factory) {
+                let notificationUseCase = factory.getNotificationUseCase();
+                await notificationUseCase.getNotifications(namespace);
+            };
+            case (null) {
+                Debug.print("UseCaseFactory not initialized");
+                [];
+            };
+        };
     };
 
     // ManageCategories use case methods
     public shared func createCategory(id : Text, name : Text, description : Text, parentId : ?Text) : async Result.Result<Category.Category, Text> {
-        let useCase = useCaseFactory.getManageCategoriesUseCase();
-        await useCase.createCategory(id, name, description, parentId);
+        switch (useCaseFactory) {
+            case (?factory) {
+                let manageCategoriesUseCase = factory.getManageCategoriesUseCase();
+                await manageCategoriesUseCase.createCategory(id, name, description, parentId);
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
+        };
     };
 
     public func getCategory(id : CategoryId) : async Result.Result<Category.Category, Text> {
-        let useCase = useCaseFactory.getManageCategoriesUseCase();
-        await useCase.getCategory(id);
+        switch (useCaseFactory) {
+            case (?factory) {
+                let manageCategoriesUseCase = factory.getManageCategoriesUseCase();
+                await manageCategoriesUseCase.getCategory(id);
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
+        };
     };
 
     public shared func updateCategory(category : Category.Category) : async Result.Result<(), Text> {
-        let useCase = useCaseFactory.getManageCategoriesUseCase();
-        await useCase.updateCategory(category);
+        switch (useCaseFactory) {
+            case (?factory) {
+                let manageCategoriesUseCase = factory.getManageCategoriesUseCase();
+                await manageCategoriesUseCase.updateCategory(category);
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
+        };
     };
 
     public func listCategories() : async [Category.Category] {
-        let useCase = useCaseFactory.getManageCategoriesUseCase();
-        await useCase.listCategories();
+        switch (useCaseFactory) {
+            case (?factory) {
+                let manageCategoriesUseCase = factory.getManageCategoriesUseCase();
+                await manageCategoriesUseCase.listCategories();
+            };
+            case (null) {
+                Debug.print("UseCaseFactory not initialized");
+                [];
+            };
+        };
     };
 
     // GetUserReputation use case methods
-    public func getUserReputation(userId : UserId, categoryId : CategoryId) : async Result.Result<Reputation.Reputation, Text> {
-        let useCase = useCaseFactory.getGetUserReputationUseCase();
-        await useCase.execute(userId, categoryId);
+    public func getUserReputation(userId : User.UserId, categoryId : Category.CategoryId) : async Result.Result<Reputation.Reputation, Text> {
+        switch (useCaseFactory) {
+            case (?factory) {
+                let getUserReputationUseCase = factory.getGetUserReputationUseCase();
+                await getUserReputationUseCase.execute(userId, categoryId);
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
+        };
     };
 
     public func getUserReputations(userId : UserId) : async Result.Result<[Reputation.Reputation], Text> {
-        let useCase = useCaseFactory.getGetUserReputationUseCase();
-        await useCase.getUserReputations(userId);
+        switch (useCaseFactory) {
+            case (?factory) {
+                let getUserReputationUseCase = factory.getGetUserReputationUseCase();
+                await getUserReputationUseCase.getUserReputations(userId);
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
+        };
     };
 
     // Additional methods using repository implementations directly
@@ -332,12 +230,19 @@ actor class ReputationActor() = Self {
     };
 
     public shared func deleteCategory(categoryId : CategoryId) : async Result.Result<(), Text> {
-        let deleteCategoryUseCase = useCaseFactory.getDeleteCategoryUseCase();
-        let result = await deleteCategoryUseCase.execute(categoryId);
-        if (result) {
-            #ok(());
-        } else {
-            #err("Failed to delete category");
+        switch (useCaseFactory) {
+            case (?factory) {
+                let deleteCategoryUseCase = factory.getDeleteCategoryUseCase();
+                let result = await deleteCategoryUseCase.execute(categoryId);
+                if (result) {
+                    #ok(());
+                } else {
+                    #err("Failed to delete category");
+                };
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
         };
     };
 
@@ -371,31 +276,14 @@ actor class ReputationActor() = Self {
     };
 
     public func clearAllData() : async Result.Result<(), Text> {
-        // if (Principal.isAnonymous(caller)) {
-        //     return #err("Anonymous principal not allowed");
-        // };
-
-        // Clear user data
-        let userClearResult = await userRepo.clearAllUsers();
-        if (not userClearResult) {
-            return #err("Failed to clear user data");
+        switch (useCaseFactory) {
+            case (?factory) {
+                let clearAllDataUseCase = factory.getClearAllDataUseCase();
+                await clearAllDataUseCase.execute();
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
         };
-
-        // Clear reputation data
-        let reputationClearResult = await reputationRepo.clearAllReputations();
-        if (not reputationClearResult) {
-            return #err("Failed to clear reputation data");
-        };
-
-        // Clear category data
-        let categoryClearResult = await categoryRepo.clearAllCategories();
-        if (not categoryClearResult) {
-            return #err("Failed to clear category data");
-        };
-
-        // Clear notification map
-        notificationMap := HashMap.HashMap<Namespace, [EventNotification]>(10, Text.equal, Text.hash);
-
-        #ok(());
     };
 };

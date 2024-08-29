@@ -12,6 +12,7 @@ actor TestReputationFlow {
 
     public func runTest() : async () {
         Debug.print("Starting Reputation Flow Test");
+        await ReputationActor.initialize();
         let hubPrincipal = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // Replace with actual Hub Principal
         let testUserId = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
         let testUserId2 = Principal.fromText("aaaaa-aa");
@@ -107,18 +108,6 @@ actor TestReputationFlow {
     };
 
     // Helper functions
-
-    // private func createCategory(id : Text, name : Text) : async () {
-    //     let result = await ReputationActor.createCategory(id, name, "Test Description", null);
-    //     switch (result) {
-    //         case (#ok(_)) {
-    //             Debug.print("Category " # name # " created successfully");
-    //         };
-    //         case (#err(e)) {
-    //             Debug.print("Failed to create category " # name # ": " # e);
-    //         };
-    //     };
-    // };
 
      private func createCategory(id : Text, name : Text, description : Text, parentId : ?Text) : async () {
         let result = await ReputationActor.createCategory(id, name, description, parentId);
