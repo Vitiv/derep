@@ -1,18 +1,18 @@
-import ICRC72Client "../../infrastructure/ICRC72Client";
+import UserRepository "../repositories/UserRepository";
+import ReputationRepository "../repositories/ReputationRepository";
 import CategoryRepository "../repositories/CategoryRepository";
 import NotificationRepository "../repositories/NotificationRepository";
-import ReputationRepository "../repositories/ReputationRepository";
-import UserRepository "../repositories/UserRepository";
-import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
-import ClearAllDataUseCase "./ClearAllDataUseCase";
-import DeleteCategoryUseCase "./DeleteCategoryUseCase";
-import DeleteUserUseCase "./DeleteUserUseCase";
+import ManageCategories "./ManageCategories";
+import UpdateReputation "./UpdateReputationUseCase";
 import GetUserReputation "./GetUserReputation";
 import HandleNotificationUseCase "./HandleNotificationUseCase";
-import ManageCategories "./ManageCategories";
-import NotificationUseCase "./NotificationUseCase";
 import PublishEventUseCase "./PublishEventUseCase";
-import UpdateReputation "./UpdateReputationUseCase";
+import DeleteUserUseCase "./DeleteUserUseCase";
+import DeleteCategoryUseCase "./DeleteCategoryUseCase";
+import ClearAllDataUseCase "./ClearAllDataUseCase";
+import ICRC72Client "../../infrastructure/ICRC72Client";
+import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
+import NotificationUseCase "./NotificationUseCase";
 
 module {
     public class UseCaseFactory(
@@ -65,6 +65,23 @@ module {
                 categoryRepo,
                 notificationRepo,
             );
+        };
+
+        // Новые методы для доступа к репозиториям
+        public func getUserRepository() : UserRepository.UserRepository {
+            userRepo;
+        };
+
+        public func getReputationRepository() : ReputationRepository.ReputationRepository {
+            reputationRepo;
+        };
+
+        public func getCategoryRepository() : CategoryRepository.CategoryRepository {
+            categoryRepo;
+        };
+
+        public func getNotificationRepository() : NotificationRepository.NotificationRepository {
+            notificationRepo;
         };
     };
 };

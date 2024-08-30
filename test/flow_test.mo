@@ -10,18 +10,27 @@ import T "../src/domain/entities/Types";
 actor TestReputationFlow {
     type Namespace = T.Namespace;
 
+    public type UserId = Principal;
+
+    public type User = {
+        id : UserId;
+        username : Text;
+        registrationDate : Int;
+    };
+
     public func runTest() : async () {
         Debug.print("Starting Reputation Flow Test");
+
+        // Инициализация ReputationActor
         await ReputationActor.initialize();
+        Debug.print("ReputationActor initialized");
+
         let hubPrincipal = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // Replace with actual Hub Principal
         let testUserId = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
         let testUserId2 = Principal.fromText("aaaaa-aa");
         let testCategoryId1 = "1.2.3.4";
         let testCategoryId2 = "1.2.3.5";
         let testCategoryId3 = "1.2.3.6";
-        // let testScoreChange = 10;
-        // let testVerificationCanister = Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai");
-        // let testVerificationMethod = "verifyDocument";
 
         // Clear all data before starting the test
         let clearResult = await ReputationActor.clearAllData();
@@ -33,10 +42,9 @@ actor TestReputationFlow {
             };
         };
 
-        // Step 1: Initialize ReputationActor and TestCanister
-        await ReputationActor.initialize();
+        // Step 1: Initialize TestCanister
         await TestCanister.initialize(hubPrincipal);
-        Debug.print("✅ Step 1: ReputationActor and TestCanister initialized");
+        Debug.print("✅ Step 1: TestCanister initialized");
 
         // Step 2: Create test categories
         await createCategory(testCategoryId1, "Test Category 1", "Test Description 1", null);
@@ -50,8 +58,8 @@ actor TestReputationFlow {
         Debug.print("✅ Step 3: Duplicate category creation attempt resulted in expected error");
 
         // Step 4: Create test users
-        assert (Result.isOk(await ReputationActor.createUser({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() })));
-        assert (Result.isOk(await ReputationActor.createUser({ id = testUserId2; username = "TestUser2"; registrationDate = Time.now() })));
+        assert (await createUser({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() }));
+        assert (await createUser({ id = testUserId2; username = "TestUser2"; registrationDate = Time.now() }));
         Debug.print("✅ Step 4: Test users created successfully");
 
         // Step 5: Update reputations for users in different categories
@@ -71,7 +79,6 @@ actor TestReputationFlow {
         // Step 7: Delete user with reputation
         let del_user_res = await ReputationActor.deleteUser(testUserId2);
         Debug.print("Step 7: deleteUser: " # debug_show (del_user_res));
-        // assert (del_user_res);
         Debug.print("✅ Step 7: Delete user with reputation. User with reputation deleted successfully ");
 
         // Step 8: Attempt to get deleted user's reputation
@@ -82,7 +89,7 @@ actor TestReputationFlow {
 
         // Step 9: Delete user without reputation
         let noRepUserId = Principal.fromText("falxc-biaaa-aaaal-ajqzq-cai");
-        assert (Result.isOk(await ReputationActor.createUser({ id = noRepUserId; username = "NoRepUser"; registrationDate = Time.now() })));
+        assert (await createUser({ id = noRepUserId; username = "NoRepUser"; registrationDate = Time.now() }));
         let delUser = await ReputationActor.deleteUser(noRepUserId);
         Debug.print("Step 9: Delete user without reputation, Result: " # debug_show (delUser));
         switch (delUser) {
@@ -109,7 +116,7 @@ actor TestReputationFlow {
 
     // Helper functions
 
-     private func createCategory(id : Text, name : Text, description : Text, parentId : ?Text) : async () {
+    private func createCategory(id : Text, name : Text, description : Text, parentId : ?Text) : async () {
         let result = await ReputationActor.createCategory(id, name, description, parentId);
         switch (result) {
             case (#ok(_)) {
@@ -122,6 +129,19 @@ actor TestReputationFlow {
         };
     };
 
+    private func createUser(user : User) : async Bool {
+        let result = await ReputationActor.createUser(user);
+        switch (result) {
+            case (#ok(success)) {
+                success
+            };
+            case (#err(e)) {
+                Debug.print("Failed to create user: " # e);
+                false
+            };
+        };
+    };
+
     private func updateReputation(userId : Principal, categoryId : Text, value : Int) : async () {
         await TestCanister.publishReputationUpdateEvent(
             Principal.toText(userId),
@@ -130,7 +150,6 @@ actor TestReputationFlow {
             Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai"),
             "verifyDocument",
         );
-
     };
 
     private func verifyReputation(userId : Principal, categoryId : Text, expectedScore : Int) : async () {
@@ -162,9 +181,9 @@ actor TestReputationFlow {
         // Create test users
         let user1 = Principal.fromText("mmt3g-qiaaa-aaaal-qi6ra-cai");
         let user2 = Principal.fromText("mls5s-5qaaa-aaaal-qi6rq-cai");
-        let resCreateUser1 = await ReputationActor.createUser({ id = user1; username = "User1"; registrationDate = Time.now() });
-         Debug.print("✅ Test pre-case 11-1 passed: user 1 created: " #debug_show(resCreateUser1));
-        let resCreateUser2 = await ReputationActor.createUser({ id = user2; username = "User2"; registrationDate = Time.now() });
+        let resCreateUser1 = await createUser({ id = user1; username = "User1"; registrationDate = Time.now() });
+         Debug.print("✅ Test pre-case 11-1 passed: user 1 created: " # debug_show(resCreateUser1));
+        let resCreateUser2 = await createUser({ id = user2; username = "User2"; registrationDate = Time.now() });
          Debug.print("✅ Test pre-case 11-2 passed: user 2 created: " # debug_show(resCreateUser2));
 
         // Test case 1: Update reputation with a physics-related namespace
@@ -190,7 +209,7 @@ actor TestReputationFlow {
             Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai"),
             "verifyWebDev"
         );
-        let r3 =await assertReputation(user2, "2.1.1", 15);
+        let r3 = await assertReputation(user2, "2.1.1", 15);
         Debug.print("assertReputation(user2, 2.1.1, 15) result: " # debug_show(r3));
 
         let r4 = await assertReputation(user2, "2.1", 15);
@@ -226,7 +245,7 @@ actor TestReputationFlow {
             case (#ok(reputation)) {
                 assert(reputation.score == expectedScore);
                 Debug.print("Verified reputation for user " # Principal.toText(userId) # " in category " # categoryId # ": " # debug_show(reputation.score));
-            true;
+                true;
             };
             case (#err(e)) {
                 Debug.print("Failed to get reputation: " # e);
