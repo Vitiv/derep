@@ -1,7 +1,6 @@
 import User "../entities/User";
 import UserRepository "../repositories/UserRepository";
 import ReputationRepository "../repositories/ReputationRepository";
-import Debug "mo:base/Debug";
 
 module {
     public class DeleteUserUseCase(userRepo : UserRepository.UserRepository, reputationRepo : ReputationRepository.ReputationRepository) {

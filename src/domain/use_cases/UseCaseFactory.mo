@@ -1,25 +1,25 @@
-import UserRepositoryImpl "../../data/repositories/UserRepositoryImpl";
-import ReputationRepositoryImpl "../../data/repositories/ReputationRepositoryImpl";
-import CategoryRepositoryImpl "../../data/repositories/CategoryRepositoryImpl";
-import ManageCategories "./ManageCategories";
-import UpdateReputation "./UpdateReputationUseCase";
+import ICRC72Client "../../infrastructure/ICRC72Client";
+import CategoryRepository "../repositories/CategoryRepository";
+import NotificationRepository "../repositories/NotificationRepository";
+import ReputationRepository "../repositories/ReputationRepository";
+import UserRepository "../repositories/UserRepository";
+import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
+import ClearAllDataUseCase "./ClearAllDataUseCase";
+import DeleteCategoryUseCase "./DeleteCategoryUseCase";
+import DeleteUserUseCase "./DeleteUserUseCase";
 import GetUserReputation "./GetUserReputation";
 import HandleNotificationUseCase "./HandleNotificationUseCase";
-import PublishEventUseCase "./PublishEventUseCase";
-import DeleteUserUseCase "./DeleteUserUseCase";
-import DeleteCategoryUseCase "./DeleteCategoryUseCase";
-import ClearAllDataUseCase "./ClearAllDataUseCase";
-import ICRC72Client "../../infrastructure/ICRC72Client";
-import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
-import NotificationRepositoryImpl "../../data/repositories/NotificationRepositoryImpl";
+import ManageCategories "./ManageCategories";
 import NotificationUseCase "./NotificationUseCase";
+import PublishEventUseCase "./PublishEventUseCase";
+import UpdateReputation "./UpdateReputationUseCase";
 
 module {
     public class UseCaseFactory(
-        userRepo : UserRepositoryImpl.UserRepositoryImpl,
-        reputationRepo : ReputationRepositoryImpl.ReputationRepositoryImpl,
-        categoryRepo : CategoryRepositoryImpl.CategoryRepositoryImpl,
-        notificationRepo : NotificationRepositoryImpl.NotificationRepositoryImpl,
+        userRepo : UserRepository.UserRepository,
+        reputationRepo : ReputationRepository.ReputationRepository,
+        categoryRepo : CategoryRepository.CategoryRepository,
+        notificationRepo : NotificationRepository.NotificationRepository,
         icrc72Client : ICRC72Client.ICRC72ClientImpl,
         namespaceCategoryMapper : NamespaceCategoryMapper.NamespaceCategoryMapper,
     ) {

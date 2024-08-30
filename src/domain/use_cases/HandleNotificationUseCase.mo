@@ -1,6 +1,5 @@
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
-import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Text "mo:base/Text";
 import T "../entities/Types";

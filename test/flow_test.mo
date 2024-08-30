@@ -50,8 +50,8 @@ actor TestReputationFlow {
         Debug.print("✅ Step 3: Duplicate category creation attempt resulted in expected error");
 
         // Step 4: Create test users
-        assert (await ReputationActor.createUser({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() }));
-        assert (await ReputationActor.createUser({ id = testUserId2; username = "TestUser2"; registrationDate = Time.now() }));
+        assert (Result.isOk(await ReputationActor.createUser({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() })));
+        assert (Result.isOk(await ReputationActor.createUser({ id = testUserId2; username = "TestUser2"; registrationDate = Time.now() })));
         Debug.print("✅ Step 4: Test users created successfully");
 
         // Step 5: Update reputations for users in different categories
@@ -82,7 +82,7 @@ actor TestReputationFlow {
 
         // Step 9: Delete user without reputation
         let noRepUserId = Principal.fromText("falxc-biaaa-aaaal-ajqzq-cai");
-        assert (await ReputationActor.createUser({ id = noRepUserId; username = "NoRepUser"; registrationDate = Time.now() }));
+        assert (Result.isOk(await ReputationActor.createUser({ id = noRepUserId; username = "NoRepUser"; registrationDate = Time.now() })));
         let delUser = await ReputationActor.deleteUser(noRepUserId);
         Debug.print("Step 9: Delete user without reputation, Result: " # debug_show (delUser));
         switch (delUser) {
