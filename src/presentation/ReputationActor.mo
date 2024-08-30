@@ -2,6 +2,7 @@ import Debug "mo:base/Debug";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
 import Option "mo:base/Option";
+import Error "mo:base/Error";
 
 import CategoryRepositoryImpl "../data/repositories/CategoryRepositoryImpl";
 import NotificationRepositoryImpl "../data/repositories/NotificationRepositoryImpl";
@@ -15,6 +16,8 @@ import NamespaceCategoryMapper "../domain/services/NamespaceCategoryMapper";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
 import ICRC72Client "../infrastructure/ICRC72Client";
 import APIHandler "./APIHandler";
+import ReputationHistoryRepositoryImpl "../data/repositories/ReputationHistoryRepositoryImpl";
+import ReputationHistoryTypes "../domain/entities/ReputationHistoryTypes";
 
 actor class ReputationActor() = Self {
     private var apiHandler : ?APIHandler.APIHandler = null;
@@ -25,6 +28,7 @@ actor class ReputationActor() = Self {
         let reputationRepo = ReputationRepositoryImpl.ReputationRepositoryImpl();
         let categoryRepo = CategoryRepositoryImpl.CategoryRepositoryImpl();
         let notificationRepo = NotificationRepositoryImpl.NotificationRepositoryImpl();
+        let reputationHistoryRepo = ReputationHistoryRepositoryImpl.ReputationHistoryRepositoryImpl();
         let namespaceCategoryMapper = NamespaceCategoryMapper.NamespaceCategoryMapper(categoryRepo);
 
         let broadcaster = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // TODO set real broadcaster id
@@ -35,6 +39,7 @@ actor class ReputationActor() = Self {
             reputationRepo,
             categoryRepo,
             notificationRepo,
+            reputationHistoryRepo,
             Option.unwrap(icrc72Client),
             namespaceCategoryMapper,
         );
@@ -192,6 +197,35 @@ actor class ReputationActor() = Self {
             case (null) { [] };
         };
     };
+
+    public func getReputationHistory(userId : Principal, categoryId : ?Text) : async Result.Result<[ReputationHistoryTypes.ReputationChange], Text> {
+        switch (apiHandler) {
+            case (?handler) {
+                let reputationHistoryUseCase = handler.getReputationHistoryUseCase();
+                try {
+                    let history = await reputationHistoryUseCase.getReputationHistory(userId, categoryId);
+                    #ok(history);
+                } catch (error) {
+                    Debug.print("Error getting reputation history: " # Error.message(error));
+                    #err("Failed to get reputation history");
+                };
+            };
+            case (null) {
+                Debug.print("UseCaseFactory not initialized");
+                #err("UseCaseFactory not initialized");
+            };
+        };
+    };
+
+    // public func getReputationHistory(userId : Principal, categoryId : ?Text) : async [ReputationHistoryTypes.ReputationChange] {
+    //     switch (apiHandler) {
+    //         case (?handler) {
+    //             let reputationHistoryUseCase = handler.getReputationHistoryUseCase();
+    //             await reputationHistoryUseCase.getReputationHistory(userId, categoryId);
+    //         };
+    //         case (null) { [] };
+    //     };
+    // };
 
     // System methods remain unchanged
     system func preupgrade() {

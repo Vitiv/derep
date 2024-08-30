@@ -7,12 +7,17 @@ import Reputation "../domain/entities/Reputation";
 import User "../domain/entities/User";
 import T "../domain/entities/Types";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
+import ReputationHistoryUseCase "../domain/use_cases/ReputationHistoryUseCase";
 
 module {
     public class APIHandler(useCaseFactory : UseCaseFactory.UseCaseFactory) {
         public func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<(), Text> {
             let updateReputationUseCase = useCaseFactory.getUpdateReputationUseCase();
             await updateReputationUseCase.execute(user, category, value);
+        };
+
+        public func getReputationHistoryUseCase() : ReputationHistoryUseCase.ReputationHistoryUseCase {
+            useCaseFactory.getReputationHistoryUseCase();
         };
 
         public func getUserReputation(userId : User.UserId, categoryId : Category.CategoryId) : async Result.Result<Reputation.Reputation, Text> {

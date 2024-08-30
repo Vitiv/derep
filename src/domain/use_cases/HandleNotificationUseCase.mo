@@ -1,17 +1,21 @@
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
+import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Text "mo:base/Text";
+import Iter "mo:base/Iter";
 import T "../entities/Types";
 import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
 import UpdateReputationUseCase "./UpdateReputationUseCase";
 import Category "../entities/Category";
 import ArrayUtils "../../../utils/ArrayUtils";
+import CategoryRepository "../repositories/CategoryRepository";
 
 module {
     public class HandleNotificationUseCase(
         namespaceCategoryMapper : NamespaceCategoryMapper.NamespaceCategoryMapper,
         updateReputationUseCase : UpdateReputationUseCase.UpdateReputationUseCase,
+        categoryRepo : CategoryRepository.CategoryRepository,
     ) {
         public func execute(notification : T.EventNotification) : async () {
             Debug.print("Processing event notification: " # debug_show (notification));
@@ -20,7 +24,10 @@ module {
                 let parseResult = parseReputationUpdateNotification(notification);
                 switch (parseResult) {
                     case (#ok(data)) {
+                        Debug.print("Parsed reputation update data: " # debug_show (data));
+
                         let categories = await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace);
+                        Debug.print("Mapped categories: " # debug_show (categories));
 
                         let categoriesToUpdate = if (categories.size() > 0) {
                             categories;
@@ -30,14 +37,13 @@ module {
                                 case (?cat) { [cat] };
                             };
                         };
+                        Debug.print("Categories to update: " # debug_show (categoriesToUpdate));
 
-                        // Get all parent ctaegories
+                        // Ensure all categories in the hierarchy exist
                         var allCategories : [Category.CategoryId] = [];
                         for (category in categoriesToUpdate.vals()) {
-                            // TODO collect unique categories only
-                            let parentCategories = await namespaceCategoryMapper.getParentCategories(category);
-                            allCategories := ArrayUtils.pushToArray(category, allCategories);
-                            allCategories := ArrayUtils.appendArray(allCategories, parentCategories);
+                            let categoryHierarchy = await ensureCategoryHierarchy(category);
+                            allCategories := ArrayUtils.appendArray(allCategories, categoryHierarchy);
                         };
 
                         // Remove duplicates
@@ -48,6 +54,7 @@ module {
                             };
                         };
                         allCategories := Buffer.toArray(uniqueCategories);
+                        Debug.print("All categories to update (including parents): " # debug_show (allCategories));
 
                         for (category in allCategories.vals()) {
                             let updateResult = await updateReputationUseCase.execute(data.user, category, data.value);
@@ -65,10 +72,11 @@ module {
                         Debug.print("Failed to parse notification: " # error);
                     };
                 };
+            } else {
+                Debug.print("Notification namespace not recognized: " # notification.namespace);
             };
         };
 
-        // Parse reputation update notification
         private func parseReputationUpdateNotification(notification : T.EventNotification) : Result.Result<T.ReputationUpdateInfo, Text> {
             switch (notification.data) {
                 case (#Map(dataMap)) {
@@ -119,5 +127,64 @@ module {
             };
         };
 
+        private func ensureCategoryHierarchy(categoryId : Text) : async [Text] {
+            var categories = [categoryId];
+            var currentCategoryId = categoryId;
+
+            await ensureCategory(categoryId);
+
+            while (Text.contains(currentCategoryId, #char '.')) {
+                let parts = Iter.toArray(Text.split(currentCategoryId, #char '.'));
+                let parentParts = Array.subArray(parts, 0, parts.size() - 1);
+                let parentId = Text.join(".", parentParts.vals());
+
+                switch (await categoryRepo.getCategory(parentId)) {
+                    case (null) {
+                        let newCategory = {
+                            id = parentId;
+                            name = "Auto-generated category " # parentId;
+                            description = "Automatically created parent category";
+                            parentId = null;
+                        };
+                        let created = await categoryRepo.createCategory(newCategory);
+                        if (not created) {
+                            Debug.print("Failed to create category: " # parentId);
+                        } else {
+                            Debug.print("Created new parent category: " # parentId);
+                        };
+                    };
+                    case (?_) {
+                        Debug.print("Category already exists: " # parentId);
+                    };
+                };
+
+                categories := ArrayUtils.pushToArray(parentId, categories);
+                currentCategoryId := parentId;
+            };
+
+            Array.reverse(categories);
+        };
+
+        private func ensureCategory(categoryId : Text) : async () {
+            switch (await categoryRepo.getCategory(categoryId)) {
+                case (null) {
+                    let newCategory = {
+                        id = categoryId;
+                        name = "Auto-generated category " # categoryId;
+                        description = "Automatically created category";
+                        parentId = null;
+                    };
+                    let created = await categoryRepo.createCategory(newCategory);
+                    if (not created) {
+                        Debug.print("Failed to create category: " # categoryId);
+                    } else {
+                        Debug.print("Created new category: " # categoryId);
+                    };
+                };
+                case (?_) {
+                    Debug.print("Category already exists: " # categoryId);
+                };
+            };
+        };
     };
 };

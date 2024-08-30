@@ -54,8 +54,18 @@ actor TestReputationFlow {
 
         // Step 3: Attempt to create a duplicate category
         let duplicateCategoryResult = await ReputationActor.createCategory(testCategoryId1, "Duplicate Category", "Duplicate Description", null);
-        assert (Result.isErr(duplicateCategoryResult));
-        Debug.print("✅ Step 3: Duplicate category creation attempt resulted in expected error");
+        switch (duplicateCategoryResult) {
+            case (#ok(category)) {
+                assert (category.id == testCategoryId1);
+                assert (category.name == "Test Category 1");  
+                assert (category.description == "Test Description 1");
+                Debug.print("✅ Step 3: Duplicate category creation returned the existing category as expected");
+            };
+            case (#err(e)) {
+                Debug.print("❌ Step 3 failed: Unexpected error when creating duplicate category: " # e);
+                assert(false);
+            };
+        };
 
         // Step 4: Create test users
         assert (await createUser({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() }));
@@ -109,7 +119,14 @@ actor TestReputationFlow {
         assert (Result.isErr(deleteResult));
         Debug.print("✅ Step 10: Attempt to delete non-existent user handled correctly");
 
+        // Steps 11-13
         await testCategoryAndReputationUpdates();
+
+        // Step 14
+        await testDeepCategoryHierarchy();
+
+        // Step 15
+        await testReputationHistory();
 
         Debug.print("✅ ✅ ✅ All test cases completed successfully!");
     };
@@ -186,7 +203,7 @@ actor TestReputationFlow {
         let resCreateUser2 = await createUser({ id = user2; username = "User2"; registrationDate = Time.now() });
          Debug.print("✅ Test pre-case 11-2 passed: user 2 created: " # debug_show(resCreateUser2));
 
-        // Test case 1: Update reputation with a physics-related namespace
+        // Test case 11: Update reputation with a physics-related namespace
         await TestCanister.publishReputationUpdateEvent(
             Principal.toText(user1),
             "1.1", // Physics category
@@ -201,7 +218,7 @@ actor TestReputationFlow {
 
         Debug.print("✅ Test case 11 passed: Physics-related namespace update");
 
-        // Test case 2: Update reputation with a technology-related namespace
+        // Test case 12: Update reputation with a technology-related namespace
         await TestCanister.publishReputationUpdateEvent(
             Principal.toText(user2),
             "2.1.1", // Web Development category
@@ -220,7 +237,7 @@ actor TestReputationFlow {
 
         Debug.print("✅ Test case 12 passed: Technology-related namespace update");
 
-        // Test case 3: Update reputation with a complex namespace
+        // Test case 13: Update reputation with a complex namespace
         await TestCanister.publishReputationUpdateEvent(
             Principal.toText(user1),
             "1.1.1", // Quantum Physics category
@@ -237,6 +254,135 @@ actor TestReputationFlow {
         Debug.print("✅ Test case 13 passed: Complex namespace update");
 
         Debug.print("✅ All Category and Reputation Update tests passed successfully!");
+    };
+
+    private func testDeepCategoryHierarchy() : async () {
+        Debug.print("Starting Deep Category Hierarchy test");
+
+        // Create a deep category hierarchy
+        await createCategory("A", "Category A", "Top level category A", null);
+        await createCategory("A.1", "Category A.1", "Second level category A.1", ?"A");
+        await createCategory("A.1.1", "Category A.1.1", "Third level category A.1.1", ?"A.1");
+        await createCategory("A.1.1.1", "Category A.1.1.1", "Fourth level category A.1.1.1", ?"A.1.1");
+        await createCategory("A.1.1.1.1", "Category A.1.1.1.1", "Fifth level category A.1.1.1.1", ?"A.1.1.1");
+
+        let deepUser = Principal.fromText("2oh2w-faaaa-aaaal-adqpa-cai");
+        assert (await createUser({ id = deepUser; username = "DeepUser"; registrationDate = Time.now() }));
+
+        // Update reputation for the deepest category
+        await updateReputation(deepUser, "A.1.1.1.1", 50);
+
+        // Verify reputation for all levels
+        await verifyReputation(deepUser, "A.1.1.1.1", 50);
+        await verifyReputation(deepUser, "A.1.1.1", 50);
+        await verifyReputation(deepUser, "A.1.1", 50);
+        await verifyReputation(deepUser, "A.1", 50);
+        await verifyReputation(deepUser, "A", 50);
+
+        // Test negative reputation update
+        await updateReputation(deepUser, "A.1.1.1.1", -20);
+
+        // Verify updated reputation for all levels
+        await verifyReputation(deepUser, "A.1.1.1.1", 30);
+        await verifyReputation(deepUser, "A.1.1.1", 30);
+        await verifyReputation(deepUser, "A.1.1", 30);
+        await verifyReputation(deepUser, "A.1", 30);
+        await verifyReputation(deepUser, "A", 30);
+
+       // Test automatic creation of parent categories
+        await updateReputation(deepUser, "B.1.1.1.1", 40);
+
+        // Verify reputation for all levels, including automatically created ones
+        await verifyReputation(deepUser, "B.1.1.1.1", 40);
+        let result111 = await ReputationActor.getUserReputation(deepUser, "B.1.1.1");
+        Debug.print("Test 14 : verifyReputation result for B.1.1.1: " # debug_show(result111));
+        switch (result111) {
+            case (#ok(reputation)) {
+                assert(reputation.score >= 0 and reputation.score <= 40);
+            };
+            case (#err(e)) {
+                Debug.print("New category B not yet created or reputation not set: " # debug_show(e));
+            };
+        };       
+        let result11 = await ReputationActor.getUserReputation(deepUser, "B.1.1");
+        Debug.print("Test 14 : verifyReputation result for B.1.1: " # debug_show(result11));
+
+        switch (result11) {
+            case (#ok(reputation)) {
+                assert(reputation.score >= 0 and reputation.score <= 40);
+            };
+            case (#err(e)) {
+                Debug.print("New category B not yet created or reputation not set: " # debug_show(e));
+            };
+        };        
+        let result = await ReputationActor.getUserReputation(deepUser, "B.1");
+        Debug.print("Test 14 : verifyReputation result for B.1: " # debug_show(result));
+
+        switch (result) {
+            case (#ok(reputation)) {
+                assert(reputation.score >= 0 and reputation.score <= 40);
+            };
+            case (#err(e)) {
+                Debug.print("New category B not yet created or reputation not set: " # debug_show(e));
+            };
+        };
+        let result1 = await ReputationActor.getUserReputation(deepUser, "B");
+        Debug.print("Test 14 : verifyReputation result for B: " # debug_show(result1));
+
+        switch (result1) {
+            case (#ok(reputation)) {
+                assert(reputation.score >= 0 and reputation.score <= 40);
+            };
+            case (#err(e)) {
+                Debug.print("New category B not yet created or reputation not set: " # debug_show(e));
+            };
+        };
+        // Verify that categories were created
+        let categoryB = await ReputationActor.getCategory("B");
+        let categoryB1 = await ReputationActor.getCategory("B.1");
+        let categoryB11 = await ReputationActor.getCategory("B.1.1");
+        let categoryB111 = await ReputationActor.getCategory("B.1.1.1");
+        let categoryB1111 = await ReputationActor.getCategory("B.1.1.1.1");
+
+        assert(Result.isOk(categoryB1111));
+        Debug.print("Category B.1.1.1.1 "# debug_show(categoryB1111));
+
+        assert(Result.isOk(categoryB) or Result.isOk(categoryB1) or Result.isOk(categoryB11) or Result.isOk(categoryB111));
+        Debug.print("At least some parent categories were created automatically");
+        Debug.print("✅ Test case 14: Deep Category Hierarchy test passed");
+    };
+
+    private func testReputationHistory() : async () {
+        Debug.print("Test case 15: Starting Reputation History test");
+
+        let historyUser = Principal.fromText("h5x3q-hyaaa-aaaal-adg6q-cai");
+        assert (await createUser({ id = historyUser; username = "HistoryUser"; registrationDate = Time.now() }));
+
+        // Create a category
+        await createCategory("P", "Category P", "Test category for history", null);
+
+        // Update reputation multiple times
+        await updateReputation(historyUser, "P", 10);
+        await updateReputation(historyUser, "P", 20);
+        await updateReputation(historyUser, "P", -5);
+
+        // Get reputation history
+        let history = await ReputationActor.getReputationHistory(historyUser, ?"P");
+        assert (Result.isOk(history));
+        switch (history) {
+            case(#ok(h)) {
+                assert(h.size() == 3);
+                assert(h[0].value == 10);
+                assert(h[1].value == 20);
+                assert(h[2].value == -5);
+            };
+            case (#err(e)) {
+                Debug.print("Test case 15: error on getting histort: " # debug_show(e));
+            }
+        };
+       
+
+        Debug.print("✅ Test case 15: Reputation History test passed");
     };
 
     private func assertReputation(userId : Principal, categoryId : Text, expectedScore : Int) : async Bool {

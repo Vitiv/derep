@@ -1,18 +1,22 @@
-import UserRepository "../repositories/UserRepository";
-import ReputationRepository "../repositories/ReputationRepository";
+import ICRC72Client "../../infrastructure/ICRC72Client";
+import ReputationHistoryTypes "../entities/ReputationHistoryTypes";
 import CategoryRepository "../repositories/CategoryRepository";
 import NotificationRepository "../repositories/NotificationRepository";
-import ManageCategories "./ManageCategories";
-import UpdateReputation "./UpdateReputationUseCase";
-import GetUserReputation "./GetUserReputation";
-import HandleNotificationUseCase "./HandleNotificationUseCase";
-import PublishEventUseCase "./PublishEventUseCase";
-import DeleteUserUseCase "./DeleteUserUseCase";
-import DeleteCategoryUseCase "./DeleteCategoryUseCase";
-import ClearAllDataUseCase "./ClearAllDataUseCase";
-import ICRC72Client "../../infrastructure/ICRC72Client";
+import ReputationRepository "../repositories/ReputationRepository";
+import UserRepository "../repositories/UserRepository";
 import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
+import ClearAllDataUseCase "./ClearAllDataUseCase";
+import DeleteCategoryUseCase "./DeleteCategoryUseCase";
+import DeleteUserUseCase "./DeleteUserUseCase";
+import GetUserReputation "./GetUserReputation";
+import HandleReputationEventUseCase "./HandleReputationEventUseCase";
+import ManageCategories "./ManageCategoriesUseCase";
 import NotificationUseCase "./NotificationUseCase";
+import PublishEventUseCase "./PublishEventUseCase";
+import ReputationHistoryUseCase "./ReputationHistoryUseCase";
+import UpdateReputationUseCase "./UpdateReputationUseCase";
+import ReputationHistoryRepository "../repositories/ReputationHistoryRepository";
+import HandleNotificationUseCase "HandleNotificationUseCase";
 
 module {
     public class UseCaseFactory(
@@ -20,6 +24,7 @@ module {
         reputationRepo : ReputationRepository.ReputationRepository,
         categoryRepo : CategoryRepository.CategoryRepository,
         notificationRepo : NotificationRepository.NotificationRepository,
+        reputationHistoryRepo : ReputationHistoryRepository.ReputationHistoryRepository,
         icrc72Client : ICRC72Client.ICRC72ClientImpl,
         namespaceCategoryMapper : NamespaceCategoryMapper.NamespaceCategoryMapper,
     ) {
@@ -27,18 +32,39 @@ module {
             ManageCategories.ManageCategoriesUseCase(categoryRepo);
         };
 
-        public func getUpdateReputationUseCase() : UpdateReputation.UpdateReputationUseCase {
-            UpdateReputation.UpdateReputationUseCase(reputationRepo, userRepo);
+        public func getUpdateReputationUseCase() : UpdateReputationUseCase.UpdateReputationUseCase {
+            UpdateReputationUseCase.UpdateReputationUseCase(
+                reputationRepo,
+                userRepo,
+                getReputationHistoryUseCase(),
+            );
+        };
+
+        public func getReputationRepository() : ReputationRepository.ReputationRepository {
+            reputationRepo;
+        };
+
+        public func getUserRepository() : UserRepository.UserRepository {
+            userRepo;
         };
 
         public func getGetUserReputationUseCase() : GetUserReputation.GetUserReputationUseCase {
             GetUserReputation.GetUserReputationUseCase(reputationRepo);
         };
 
+        // public func getHandleReputationEventUseCase() : HandleReputationEventUseCase.HandleReputationEventUseCase {
+        //     HandleReputationEventUseCase.HandleReputationEventUseCase(
+        //         categoryRepo,
+        //         getUpdateReputationUseCase(),
+        //
+        //     );
+        // };
+
         public func getHandleNotificationUseCase() : HandleNotificationUseCase.HandleNotificationUseCase {
             HandleNotificationUseCase.HandleNotificationUseCase(
                 namespaceCategoryMapper,
                 getUpdateReputationUseCase(),
+                categoryRepo,
             );
         };
 
@@ -67,21 +93,10 @@ module {
             );
         };
 
-        // Новые методы для доступа к репозиториям
-        public func getUserRepository() : UserRepository.UserRepository {
-            userRepo;
-        };
-
-        public func getReputationRepository() : ReputationRepository.ReputationRepository {
-            reputationRepo;
-        };
-
-        public func getCategoryRepository() : CategoryRepository.CategoryRepository {
-            categoryRepo;
-        };
-
-        public func getNotificationRepository() : NotificationRepository.NotificationRepository {
-            notificationRepo;
+        public func getReputationHistoryUseCase() : ReputationHistoryUseCase.ReputationHistoryUseCase {
+            ReputationHistoryUseCase.ReputationHistoryUseCase(
+                reputationHistoryRepo
+            );
         };
     };
 };
