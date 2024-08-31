@@ -1,6 +1,9 @@
 import Array "mo:base/Array";
 import Iter "mo:base/Iter";
 import Text "mo:base/Text";
+import Buffer "mo:base/Buffer";
+import Debug "mo:base/Debug";
+
 import Category "../entities/Category";
 import CategoryRepository "../repositories/CategoryRepository";
 import ArrayUtils "../../../utils/ArrayUtils";
@@ -8,60 +11,63 @@ import ArrayUtils "../../../utils/ArrayUtils";
 module {
     public class NamespaceCategoryMapper(categoryRepo : CategoryRepository.CategoryRepository) {
         public func mapNamespaceToCategories(namespace : Text) : async [Category.CategoryId] {
-            let parts = Text.split(namespace, #char '.');
-            let categories = await categoryRepo.listCategories();
             var matchedCategories : [Category.CategoryId] = [];
+            var currentNamespace = namespace;
 
-            for (part in Iter.toArray(parts).vals()) {
-                let matchingCategories = Array.filter(
-                    categories,
-                    func(category : Category.Category) : Bool {
-                        Text.contains(category.name, #text part);
-                    },
-                );
-
-                for (category in matchingCategories.vals()) {
-                    if (not contains(matchedCategories, category.id)) {
+            while (Text.size(currentNamespace) > 0) {
+                switch (await categoryRepo.getCategory(currentNamespace)) {
+                    case (?category) {
                         matchedCategories := ArrayUtils.pushToArray(category.id, matchedCategories);
-                        // Add parent categories
-                        let parentCategories = await getParentCategories(category.id);
-                        for (parentId in parentCategories.vals()) {
-                            if (not contains(matchedCategories, parentId)) {
-                                matchedCategories := ArrayUtils.pushToArray(parentId, matchedCategories);
+                    };
+                    case (null) {
+                        if (currentNamespace == namespace) {
+                            // Create new category if it doesn't exist
+                            let newCategory = {
+                                id = namespace;
+                                name = "Auto-generated category " # namespace;
+                                description = "Automatically created category";
+                                parentId = ?getParentId(namespace);
+                            };
+                            let created = await categoryRepo.createCategory(newCategory);
+                            if (created) {
+                                Debug.print("NamespaceCategoryMapper: Created new category: " # namespace);
+                                matchedCategories := ArrayUtils.pushToArray(namespace, matchedCategories);
+                            } else {
+                                Debug.print("NamespaceCategoryMapper: Failed to create category: " # namespace);
                             };
                         };
                     };
                 };
+                currentNamespace := getParentId(currentNamespace);
             };
 
-            matchedCategories;
+            Array.reverse(matchedCategories);
         };
 
-        private func contains(arr : [Category.CategoryId], item : Category.CategoryId) : Bool {
-            for (element in arr.vals()) {
-                if (Text.equal(element, item)) {
-                    return true;
-                };
+        private func getParentId(id : Text) : Text {
+            let partsArray = Iter.toArray(Text.split(id, #char '.'));
+
+            if (partsArray.size() <= 1) {
+                return "";
             };
-            false;
+
+            let parentParts = Buffer.Buffer<Text>(partsArray.size() - 1);
+            for (i in Iter.range(0, partsArray.size() - 2)) {
+                parentParts.add(partsArray[i]);
+            };
+
+            Text.join(".", parentParts.vals());
         };
 
+        // This method can be useful for getting all parent categories
         public func getParentCategories(categoryId : Category.CategoryId) : async [Category.CategoryId] {
             var parentCategories : [Category.CategoryId] = [];
             var currentCategoryId = categoryId;
 
-            label a while (true) {
-                switch (await categoryRepo.getCategory(currentCategoryId)) {
-                    case null { break a };
-                    case (?category) {
-                        switch (category.parentId) {
-                            case null { break a };
-                            case (?parentId) {
-                                parentCategories := ArrayUtils.pushToArray(parentId, parentCategories);
-                                currentCategoryId := parentId;
-                            };
-                        };
-                    };
+            while (Text.size(currentCategoryId) > 0) {
+                currentCategoryId := getParentId(currentCategoryId);
+                if (Text.size(currentCategoryId) > 0) {
+                    parentCategories := ArrayUtils.pushToArray(currentCategoryId, parentCategories);
                 };
             };
 

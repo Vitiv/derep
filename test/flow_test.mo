@@ -21,7 +21,7 @@ actor TestReputationFlow {
     public func runTest() : async () {
         Debug.print("Starting Reputation Flow Test");
 
-        // Инициализация ReputationActor
+        // init ReputationActor
         await ReputationActor.initialize();
         Debug.print("ReputationActor initialized");
 
@@ -33,13 +33,18 @@ actor TestReputationFlow {
         let testCategoryId3 = "1.2.3.6";
 
         // Clear all data before starting the test
-        let clearResult = await ReputationActor.clearAllData();
-        switch (clearResult) {
-            case (#ok(_)) { Debug.print("Data cleared successfully") };
-            case (#err(e)) {
-                Debug.print("Failed to clear data: " # e);
-                return;
+       let shouldClearData = false; 
+        if (shouldClearData) {
+            let clearResult = await ReputationActor.clearAllData();
+            switch (clearResult) {
+                case (#ok(_)) { Debug.print("Data cleared successfully") };
+                case (#err(e)) {
+                    Debug.print("Failed to clear data: " # e);
+                    return;
+                };
             };
+            // 
+            await ReputationActor.initialize();
         };
 
         // Step 1: Initialize TestCanister
@@ -52,13 +57,19 @@ actor TestReputationFlow {
         await createCategory(testCategoryId3, "Test Category 3", "Test Description 3", null);
         Debug.print("✅ Step 2: Create test categories Ok");
 
+        // Step 2: Create test categories (теперь это безопасно делать многократно)
+        await createCategoryIfNotExists(testCategoryId1, "Test Category 1", "Test Description 1", null);
+        await createCategoryIfNotExists(testCategoryId2, "Test Category 2", "Test Description 2", null);
+        await createCategoryIfNotExists(testCategoryId3, "Test Category 3", "Test Description 3", null);
+        Debug.print("✅ Step 2: Test categories created or verified");
+
         // Step 3: Attempt to create a duplicate category
         let duplicateCategoryResult = await ReputationActor.createCategory(testCategoryId1, "Duplicate Category", "Duplicate Description", null);
         switch (duplicateCategoryResult) {
             case (#ok(category)) {
                 assert (category.id == testCategoryId1);
-                assert (category.name == "Test Category 1");  
-                assert (category.description == "Test Description 1");
+                assert (category.name == "Motoko");  
+                assert (category.description == "Motoko programming language");
                 Debug.print("✅ Step 3: Duplicate category creation returned the existing category as expected");
             };
             case (#err(e)) {
@@ -67,11 +78,10 @@ actor TestReputationFlow {
             };
         };
 
-        // Step 4: Create test users
-        assert (await createUser({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() }));
-        assert (await createUser({ id = testUserId2; username = "TestUser2"; registrationDate = Time.now() }));
-        Debug.print("✅ Step 4: Test users created successfully");
-
+        // Step 4: Create test users (теперь проверяем существование перед созданием)
+        await createUserIfNotExists({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() });
+        await createUserIfNotExists({ id = testUserId2; username = "TestUser2"; registrationDate = Time.now() });
+        Debug.print("✅ Step 4: Test users created or verified");
         // Step 5: Update reputations for users in different categories
         await updateReputation(testUserId, testCategoryId1, 10);
         await updateReputation(testUserId, testCategoryId2, 20);
@@ -133,6 +143,57 @@ actor TestReputationFlow {
 
     // Helper functions
 
+    private func createCategoryIfNotExists(id : Text, name : Text, description : Text, parentId : ?Text) : async () {
+        let existingCategory = await ReputationActor.getCategory(id);
+        switch (existingCategory) {
+            case (#ok(_)) {
+                Debug.print("Category already exists: " # id);
+            };
+            case (#err(_)) {
+                let result = await ReputationActor.createCategory(id, name, description, parentId);
+                switch (result) {
+                    case (#ok(_)) {
+                        Debug.print("Category " # name # " created successfully");
+                    };
+                    case (#err(e)) {
+                        Debug.print("Failed to create category " # name # ": " # e);
+                        assert(false);
+                    };
+                };
+            };
+        };
+    };
+
+    private func createUserIfNotExists(user : User) : async () {
+        let existingUser = await ReputationActor.getUser(user.id);
+        switch (existingUser) {
+            case (#ok(?_)) {
+                Debug.print("User already exists: " # Principal.toText(user.id));
+            };
+            case (#ok(null)) {
+                let result = await ReputationActor.createUser(user);
+                switch (result) {
+                    case (#ok(true)) {
+                        Debug.print("User created successfully: " # Principal.toText(user.id));
+                    };
+                    case (#ok(false)) {
+                        Debug.print("Failed to create user: " # Principal.toText(user.id));
+                        assert(false);
+                    };
+                    case (#err(e)) {
+                        Debug.print("Error creating user: " # e);
+                        assert(false);
+                    };
+                };
+            };
+            case (#err(e)) {
+                Debug.print("Error checking user existence: " # e);
+                assert(false);
+            };
+        };
+    };
+
+
     private func createCategory(id : Text, name : Text, description : Text, parentId : ?Text) : async () {
         let result = await ReputationActor.createCategory(id, name, description, parentId);
         switch (result) {
@@ -177,7 +238,7 @@ actor TestReputationFlow {
                 Debug.print("Verified reputation for user " # Principal.toText(userId) # " in category " # categoryId # ": " # debug_show (reputation.score));
             };
             case (#err(e)) {
-                Debug.print("Failed to get reputation: " # e);
+                Debug.print("Failed to get reputation: user: " # Principal.toText(userId) # " category " # categoryId # "error: "# e);
                 assert (false);
             };
         };

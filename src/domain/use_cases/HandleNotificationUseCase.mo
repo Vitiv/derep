@@ -4,6 +4,7 @@ import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Text "mo:base/Text";
 import Iter "mo:base/Iter";
+import Option "mo:base/Option";
 import T "../entities/Types";
 import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
 import UpdateReputationUseCase "./UpdateReputationUseCase";
@@ -26,7 +27,11 @@ module {
                     case (#ok(data)) {
                         Debug.print("Parsed reputation update data: " # debug_show (data));
 
-                        let categories = await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace);
+                        let categories = if (data.category != null) {
+                            [Option.get(data.category, T.DEFAULT_CATEGORY)];
+                        } else {
+                            await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace);
+                        };
                         Debug.print("Mapped categories: " # debug_show (categories));
 
                         let categoriesToUpdate = if (categories.size() > 0) {
@@ -54,7 +59,7 @@ module {
                             };
                         };
                         allCategories := Buffer.toArray(uniqueCategories);
-                        Debug.print("All categories to update (including parents): " # debug_show (allCategories));
+                        Debug.print("HandleNotificationUseCase: All categories to update (including parents): " # debug_show (allCategories));
 
                         for (category in allCategories.vals()) {
                             let updateResult = await updateReputationUseCase.execute(data.user, category, data.value);

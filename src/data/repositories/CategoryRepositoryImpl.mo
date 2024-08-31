@@ -1,7 +1,9 @@
-import Category "../../domain/entities/Category";
+import Debug "mo:base/Debug";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import Text "mo:base/Text";
+
+import Category "../../domain/entities/Category";
 
 module {
     public class CategoryRepositoryImpl() {
@@ -9,16 +11,29 @@ module {
 
         public func createCategory(category : Category.Category) : async Bool {
             switch (categories.get(category.id)) {
-                case (?_) { false }; // Category already exists
+                case (?_) {
+                    Debug.print("CategoryRepositoryImpl.createCategory: Category already exists: " # category.id);
+                    false;
+                };
                 case null {
                     categories.put(category.id, category);
+                    Debug.print("CategoryRepositoryImpl.createCategory: Category created: " # category.id);
                     true;
                 };
             };
         };
 
         public func getCategory(id : Category.CategoryId) : async ?Category.Category {
-            categories.get(id);
+            let result = categories.get(id);
+            switch (result) {
+                case (?category) {
+                    Debug.print("CategoryRepositoryImpl.getCategory: Found category: " # debug_show (category));
+                };
+                case (null) {
+                    Debug.print("CategoryRepositoryImpl.getCategory: Category not found for id: " # id);
+                };
+            };
+            result;
         };
 
         public func updateCategory(category : Category.Category) : async Bool {

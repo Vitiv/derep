@@ -34,25 +34,48 @@ actor class ReputationActor() = Self {
         let broadcaster = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // TODO set real broadcaster id
         icrc72Client := ?ICRC72Client.ICRC72ClientImpl(broadcaster, Principal.fromActor(Self));
 
-        let useCaseFactory = UseCaseFactory.UseCaseFactory(
-            userRepo,
-            reputationRepo,
-            categoryRepo,
-            notificationRepo,
-            reputationHistoryRepo,
-            Option.unwrap(icrc72Client),
-            namespaceCategoryMapper,
-        );
-
-        apiHandler := ?APIHandler.APIHandler(useCaseFactory);
-
         switch (icrc72Client) {
             case (?client) {
+                let useCaseFactory = UseCaseFactory.UseCaseFactory(
+                    userRepo,
+                    reputationRepo,
+                    categoryRepo,
+                    notificationRepo,
+                    reputationHistoryRepo,
+                    client,
+                    namespaceCategoryMapper,
+                );
+
+                apiHandler := ?APIHandler.APIHandler(useCaseFactory);
+
+                // Initialize categories if needed
+                let categoriesInitialized = await useCaseFactory.areCategoriesInitialized();
+                if (not categoriesInitialized) {
+                    Debug.print("ReputationActor.initialize: Starting category initialization...");
+                    await useCaseFactory.initializeCategories();
+                    Debug.print("ReputationActor.initialize: Category initialization completed");
+
+                    // Verify specific category
+                    let result = await categoryRepo.getCategory("1.2.3.7");
+                    switch (result) {
+                        case (?category) {
+                            Debug.print("ReputationActor.initialize: Verified category 1.2.3.7 exists: " # debug_show (category));
+                        };
+                        case (null) {
+                            Debug.print("ERROR: ReputationActor.initialize: Category 1.2.3.7 not found after initialization");
+                        };
+                    };
+                } else {
+                    Debug.print("ReputationActor.initialize: Categories already initialized, skipping initialization");
+                };
+
+                // Subscribe to UPDATE_REPUTATION_NAMESPACE events
                 ignore await client.subscribe(T.UPDATE_REPUTATION_NAMESPACE);
-                Debug.print("Subscribed to " # T.UPDATE_REPUTATION_NAMESPACE);
+                Debug.print("ReputationActor.initialize: Subscribed to " # T.UPDATE_REPUTATION_NAMESPACE);
             };
             case (null) {
-                Debug.print("ICRC72 client not initialized");
+                Debug.print("ReputationActor.initialize: ICRC72 client not initialized, initialization failed");
+                return;
             };
         };
     };
@@ -85,9 +108,17 @@ actor class ReputationActor() = Self {
     };
 
     public func getCategory(id : Category.CategoryId) : async Result.Result<Category.Category, Text> {
+        Debug.print("ReputationActor.getCategory: Requesting category with id: " # id);
         switch (apiHandler) {
-            case (?handler) { await handler.getCategory(id) };
-            case (null) { #err("API Handler not initialized") };
+            case (?handler) {
+                let result = await handler.getCategory(id);
+                Debug.print("ReputationActor.getCategory: Result: " # debug_show (result));
+                result;
+            };
+            case (null) {
+                Debug.print("ReputationActor.getCategory: API Handler not initialized");
+                #err("API Handler not initialized");
+            };
         };
     };
 
@@ -179,7 +210,17 @@ actor class ReputationActor() = Self {
 
     public func clearAllData() : async Result.Result<(), Text> {
         switch (apiHandler) {
-            case (?handler) { await handler.clearAllData() };
+            case (?handler) {
+                let result = await handler.clearAllData();
+                switch (result) {
+                    case (#ok(_)) {
+                        // Reinitialize categories after clearing
+                        await initialize();
+                    };
+                    case (#err(_)) {};
+                };
+                result;
+            };
             case (null) { #err("API Handler not initialized") };
         };
     };
@@ -216,16 +257,6 @@ actor class ReputationActor() = Self {
             };
         };
     };
-
-    // public func getReputationHistory(userId : Principal, categoryId : ?Text) : async [ReputationHistoryTypes.ReputationChange] {
-    //     switch (apiHandler) {
-    //         case (?handler) {
-    //             let reputationHistoryUseCase = handler.getReputationHistoryUseCase();
-    //             await reputationHistoryUseCase.getReputationHistory(userId, categoryId);
-    //         };
-    //         case (null) { [] };
-    //     };
-    // };
 
     // System methods remain unchanged
     system func preupgrade() {
