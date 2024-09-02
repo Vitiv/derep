@@ -2,6 +2,7 @@ import Debug "mo:base/Debug";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import Text "mo:base/Text";
+import Array "mo:base/Array";
 
 import Category "../../domain/entities/Category";
 
@@ -70,6 +71,35 @@ module {
             switch (categories.remove(id)) {
                 case (null) { false };
                 case (?_) { true };
+            };
+        };
+
+        public func ensureCategoryHierarchy(categoryId : Text) : async () {
+            var currentId = categoryId;
+            while (currentId != "") {
+                switch (await getCategory(currentId)) {
+                    case (null) {
+                        let newCategory = {
+                            id = currentId;
+                            name = "Auto-generated category " # currentId;
+                            description = "Automatically created category";
+                            parentId = ?getParentId(currentId);
+                        };
+                        ignore await createCategory(newCategory);
+                    };
+                    case (?_) {};
+                };
+                currentId := getParentId(currentId);
+            };
+        };
+
+        private func getParentId(id : Text) : Text {
+            let parts = Iter.toArray(Text.split(id, #char '.'));
+            if (parts.size() <= 1) {
+                return "";
+            } else {
+                let parentParts = Array.tabulate<Text>(parts.size() - 1, func(i : Nat) : Text { parts[i] });
+                return Text.join(".", parentParts.vals());
             };
         };
     };

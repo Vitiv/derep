@@ -8,6 +8,7 @@ import User "../domain/entities/User";
 import T "../domain/entities/Types";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
 import ReputationHistoryUseCase "../domain/use_cases/ReputationHistoryUseCase";
+import DetermineCategoriesUseCase "../domain/use_cases/DetermineCategoriesUseCase";
 
 module {
     public class APIHandler(useCaseFactory : UseCaseFactory.UseCaseFactory) {
@@ -130,6 +131,14 @@ module {
         public func getNotifications(namespace : T.Namespace) : async [T.EventNotification] {
             let notificationUseCase = useCaseFactory.getNotificationUseCase();
             await notificationUseCase.getNotifications(namespace);
+        };
+
+        public func getNamespacesForCategory(categoryId : Category.CategoryId) : async [Text] {
+            let namespaceMappingRepo = useCaseFactory.getNamespaceCategoryMappingRepository();
+            await namespaceMappingRepo.getNamespacesForCategory(categoryId);
+        };
+        public func getDetermineCategoriesUseCase() : DetermineCategoriesUseCase.DetermineCategoriesUseCase {
+            useCaseFactory.getDetermineCategoriesUseCase();
         };
     };
 };

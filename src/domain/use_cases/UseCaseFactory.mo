@@ -1,24 +1,24 @@
-import Debug "mo:base/Debug";
-import Int "mo:base/Int";
-
-import InitialCategories "../../data/datasources/InitialCategories";
 import ICRC72Client "../../infrastructure/ICRC72Client";
 import CategoryRepository "../repositories/CategoryRepository";
 import NotificationRepository "../repositories/NotificationRepository";
-import ReputationHistoryRepository "../repositories/ReputationHistoryRepository";
 import ReputationRepository "../repositories/ReputationRepository";
 import UserRepository "../repositories/UserRepository";
+import ReputationHistoryRepository "../repositories/ReputationHistoryRepository";
+import NamespaceCategoryMappingRepository "../repositories/NamespaceCategoryMappingRepository";
 import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
+import DocumentClassifier "../services/DocumentClassifier";
+
 import ClearAllDataUseCase "./ClearAllDataUseCase";
 import DeleteCategoryUseCase "./DeleteCategoryUseCase";
 import DeleteUserUseCase "./DeleteUserUseCase";
-import GetUserReputation "./GetUserReputation";
-import ManageCategories "./ManageCategoriesUseCase";
+import GetUserReputationUseCase "./GetUserReputation";
+import HandleNotificationUseCase "./HandleNotificationUseCase";
+import ManageCategoriesUseCase "./ManageCategoriesUseCase";
 import NotificationUseCase "./NotificationUseCase";
 import PublishEventUseCase "./PublishEventUseCase";
 import ReputationHistoryUseCase "./ReputationHistoryUseCase";
 import UpdateReputationUseCase "./UpdateReputationUseCase";
-import HandleNotificationUseCase "HandleNotificationUseCase";
+import DetermineCategoriesUseCase "./DetermineCategoriesUseCase";
 
 module {
     public class UseCaseFactory(
@@ -27,69 +27,26 @@ module {
         categoryRepo : CategoryRepository.CategoryRepository,
         notificationRepo : NotificationRepository.NotificationRepository,
         reputationHistoryRepo : ReputationHistoryRepository.ReputationHistoryRepository,
+        namespaceMappingRepo : NamespaceCategoryMappingRepository.NamespaceCategoryMappingRepository,
         icrc72Client : ICRC72Client.ICRC72ClientImpl,
         namespaceCategoryMapper : NamespaceCategoryMapper.NamespaceCategoryMapper,
+        documentClassifier : DocumentClassifier.DocumentClassifier,
     ) {
-        public func areCategoriesInitialized() : async Bool {
-            let categories = await categoryRepo.listCategories();
-            categories.size() > 0;
-        };
-
-        public func initializeCategories() : async () {
-            let flatCategories = InitialCategories.flattenCategories(InitialCategories.initialCategories);
-            for (category in flatCategories.vals()) {
-                switch (await categoryRepo.getCategory(category.id)) {
-                    case (null) {
-                        let result = await categoryRepo.createCategory(category);
-                        if (result) {
-                            Debug.print("Category created: " # category.id);
-                        } else {
-                            Debug.print("Failed to create category: " # category.id);
-                        };
-                    };
-                    case (?existingCategory) {
-                        Debug.print("Category already exists: " # debug_show (existingCategory));
-                    };
-                };
-            };
-
-            // Verify all categories after initialization
-            for (category in flatCategories.vals()) {
-                switch (await categoryRepo.getCategory(category.id)) {
-                    case (null) {
-                        Debug.print("ERROR: Category not found after initialization: " # category.id);
-                    };
-                    case (?_) {
-                        Debug.print("Verified category exists: " # category.id);
-                    };
-                };
-            };
-            Debug.print("UseCaseFactory.initializeCategories: Initialization completed. Total categories: " # Int.toText(flatCategories.size()));
-
-        };
-
-        public func getManageCategoriesUseCase() : ManageCategories.ManageCategoriesUseCase {
-            ManageCategories.ManageCategoriesUseCase(categoryRepo);
+        public func getManageCategoriesUseCase() : ManageCategoriesUseCase.ManageCategoriesUseCase {
+            ManageCategoriesUseCase.ManageCategoriesUseCase(categoryRepo);
         };
 
         public func getUpdateReputationUseCase() : UpdateReputationUseCase.UpdateReputationUseCase {
             UpdateReputationUseCase.UpdateReputationUseCase(
                 reputationRepo,
                 userRepo,
+                categoryRepo,
                 getReputationHistoryUseCase(),
             );
         };
 
-        public func getReputationRepository() : ReputationRepository.ReputationRepository {
-            reputationRepo;
-        };
-
-        public func getUserRepository() : UserRepository.UserRepository {
-            userRepo;
-        };
-
-        public func getGetUserReputationUseCase() : GetUserReputation.GetUserReputationUseCase {
-            GetUserReputation.GetUserReputationUseCase(reputationRepo);
+        public func getGetUserReputationUseCase() : GetUserReputationUseCase.GetUserReputationUseCase {
+            GetUserReputationUseCase.GetUserReputationUseCase(reputationRepo);
         };
 
         public func getHandleNotificationUseCase() : HandleNotificationUseCase.HandleNotificationUseCase {
@@ -126,8 +83,46 @@ module {
         };
 
         public func getReputationHistoryUseCase() : ReputationHistoryUseCase.ReputationHistoryUseCase {
-            ReputationHistoryUseCase.ReputationHistoryUseCase(
-                reputationHistoryRepo
+            ReputationHistoryUseCase.ReputationHistoryUseCase(reputationHistoryRepo);
+        };
+
+        public func getNamespaceCategoryMapper() : NamespaceCategoryMapper.NamespaceCategoryMapper {
+            namespaceCategoryMapper;
+        };
+
+        public func getDocumentClassifier() : DocumentClassifier.DocumentClassifier {
+            documentClassifier;
+        };
+
+        public func getNamespaceCategoryMappingRepository() : NamespaceCategoryMappingRepository.NamespaceCategoryMappingRepository {
+            namespaceMappingRepo;
+        };
+
+        public func getUserRepository() : UserRepository.UserRepository {
+            userRepo;
+        };
+
+        public func getReputationRepository() : ReputationRepository.ReputationRepository {
+            reputationRepo;
+        };
+
+        public func getCategoryRepository() : CategoryRepository.CategoryRepository {
+            categoryRepo;
+        };
+
+        public func getNotificationRepository() : NotificationRepository.NotificationRepository {
+            notificationRepo;
+        };
+
+        public func getReputationHistoryRepository() : ReputationHistoryRepository.ReputationHistoryRepository {
+            reputationHistoryRepo;
+        };
+
+        public func getDetermineCategoriesUseCase() : DetermineCategoriesUseCase.DetermineCategoriesUseCase {
+            DetermineCategoriesUseCase.DetermineCategoriesUseCase(
+                namespaceCategoryMapper,
+                documentClassifier,
+                namespaceMappingRepo,
             );
         };
     };

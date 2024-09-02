@@ -27,49 +27,25 @@ module {
                     case (#ok(data)) {
                         Debug.print("Parsed reputation update data: " # debug_show (data));
 
-                        let categories = if (data.category != null) {
-                            [Option.get(data.category, T.DEFAULT_CATEGORY)];
-                        } else {
-                            await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace);
-                        };
+                        let documentUrl = getDocumentUrlFromNotification(notification);
+                        let categories = await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace, documentUrl, data.category);
                         Debug.print("Mapped categories: " # debug_show (categories));
 
-                        let categoriesToUpdate = if (categories.size() > 0) {
-                            categories;
-                        } else {
-                            switch (data.category) {
-                                case null { [] };
-                                case (?cat) { [cat] };
-                            };
-                        };
-                        Debug.print("Categories to update: " # debug_show (categoriesToUpdate));
-
-                        // Ensure all categories in the hierarchy exist
-                        var allCategories : [Category.CategoryId] = [];
-                        for (category in categoriesToUpdate.vals()) {
-                            let categoryHierarchy = await ensureCategoryHierarchy(category);
-                            allCategories := ArrayUtils.appendArray(allCategories, categoryHierarchy);
-                        };
-
-                        // Remove duplicates
-                        let uniqueCategories = Buffer.Buffer<Category.CategoryId>(allCategories.size());
-                        for (category in allCategories.vals()) {
-                            if (not Buffer.contains(uniqueCategories, category, Text.equal)) {
-                                uniqueCategories.add(category);
-                            };
-                        };
-                        allCategories := Buffer.toArray(uniqueCategories);
-                        Debug.print("HandleNotificationUseCase: All categories to update (including parents): " # debug_show (allCategories));
-
-                        for (category in allCategories.vals()) {
-                            let updateResult = await updateReputationUseCase.execute(data.user, category, data.value);
-                            switch (updateResult) {
-                                case (#ok(_)) {
-                                    Debug.print("Updated reputation for category " # debug_show (category));
+                        for (category in categories.vals()) {
+                            if (category != "") {
+                                let existCategories = await ensureCategoryHierarchy(category);
+                                Debug.print("HandleNotificationUseCase: existCategories " # debug_show (existCategories));
+                                let updateResult = await updateReputationUseCase.execute(data.user, category, data.value);
+                                switch (updateResult) {
+                                    case (#ok(_)) {
+                                        Debug.print("Updated reputation for category " # debug_show (category));
+                                    };
+                                    case (#err(error)) {
+                                        Debug.print("Failed to update reputation for category " # category # ": " # debug_show (error));
+                                    };
                                 };
-                                case (#err(error)) {
-                                    Debug.print("Failed to update reputation for category " # category # ": " # debug_show (error));
-                                };
+                            } else {
+                                Debug.print("Skipping update for empty category");
                             };
                         };
                     };
@@ -80,6 +56,12 @@ module {
             } else {
                 Debug.print("Notification namespace not recognized: " # notification.namespace);
             };
+        };
+
+        private func getDocumentUrlFromNotification(notification : T.EventNotification) : ?Text {
+            // Implement logic to extract document URL from notification
+            // This is a placeholder implementation
+            null;
         };
 
         private func parseReputationUpdateNotification(notification : T.EventNotification) : Result.Result<T.ReputationUpdateInfo, Text> {

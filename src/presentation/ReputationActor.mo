@@ -18,6 +18,10 @@ import ICRC72Client "../infrastructure/ICRC72Client";
 import APIHandler "./APIHandler";
 import ReputationHistoryRepositoryImpl "../data/repositories/ReputationHistoryRepositoryImpl";
 import ReputationHistoryTypes "../domain/entities/ReputationHistoryTypes";
+import NamespaceDictionary "../data/datasources/NamespaceDictionary";
+import NamespaceCategoryMappingRepositoryImpl "../data/repositories/NamespaceCategoryMappingRepositoryImpl";
+import DocumentClassifier "../domain/services/DocumentClassifier";
+import InitialCategories "../data/datasources/InitialCategories";
 
 actor class ReputationActor() = Self {
     private var apiHandler : ?APIHandler.APIHandler = null;
@@ -29,10 +33,14 @@ actor class ReputationActor() = Self {
         let categoryRepo = CategoryRepositoryImpl.CategoryRepositoryImpl();
         let notificationRepo = NotificationRepositoryImpl.NotificationRepositoryImpl();
         let reputationHistoryRepo = ReputationHistoryRepositoryImpl.ReputationHistoryRepositoryImpl();
-        let namespaceCategoryMapper = NamespaceCategoryMapper.NamespaceCategoryMapper(categoryRepo);
+        let namespaceMappingRepo = NamespaceCategoryMappingRepositoryImpl.NamespaceCategoryMappingRepositoryImpl();
 
-        let broadcaster = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // TODO set real broadcaster id
+        let broadcaster = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // TODO: replace with actual broadcaster Principal
         icrc72Client := ?ICRC72Client.ICRC72ClientImpl(broadcaster, Principal.fromActor(Self));
+
+        let documentClassifier = DocumentClassifier.DocumentClassifier();
+
+        let namespaceCategoryMapper = NamespaceCategoryMapper.NamespaceCategoryMapper(categoryRepo, namespaceMappingRepo, documentClassifier);
 
         switch (icrc72Client) {
             case (?client) {
@@ -42,40 +50,53 @@ actor class ReputationActor() = Self {
                     categoryRepo,
                     notificationRepo,
                     reputationHistoryRepo,
+                    namespaceMappingRepo,
                     client,
                     namespaceCategoryMapper,
+                    documentClassifier,
                 );
 
                 apiHandler := ?APIHandler.APIHandler(useCaseFactory);
 
-                // Initialize categories if needed
-                let categoriesInitialized = await useCaseFactory.areCategoriesInitialized();
-                if (not categoriesInitialized) {
-                    Debug.print("ReputationActor.initialize: Starting category initialization...");
-                    await useCaseFactory.initializeCategories();
-                    Debug.print("ReputationActor.initialize: Category initialization completed");
-
-                    // Verify specific category
-                    let result = await categoryRepo.getCategory("1.2.3.7");
-                    switch (result) {
-                        case (?category) {
-                            Debug.print("ReputationActor.initialize: Verified category 1.2.3.7 exists: " # debug_show (category));
-                        };
+                // Initialize categories
+                Debug.print("ReputationActor.initialize: Starting category initialization...");
+                let flatCategories = InitialCategories.flattenCategories(InitialCategories.initialCategories);
+                for (category in flatCategories.vals()) {
+                    switch (await categoryRepo.getCategory(category.id)) {
                         case (null) {
-                            Debug.print("ERROR: ReputationActor.initialize: Category 1.2.3.7 not found after initialization");
+                            let result = await categoryRepo.createCategory(category);
+                            if (result) {
+                                Debug.print("Category created: " # category.id);
+                            } else {
+                                Debug.print("Failed to create category: " # category.id);
+                            };
+                        };
+                        case (?existingCategory) {
+                            Debug.print("Category already exists: " # existingCategory.id);
                         };
                     };
-                } else {
-                    Debug.print("ReputationActor.initialize: Categories already initialized, skipping initialization");
                 };
+                Debug.print("ReputationActor.initialize: Category initialization completed");
 
-                // Subscribe to UPDATE_REPUTATION_NAMESPACE events
+                // Initialize predefined namespace-category mappings
+                Debug.print("ReputationActor.initialize: Starting namespace-category mapping initialization...");
+                for ((namespace, categoryId) in NamespaceDictionary.initialMappings.vals()) {
+                    let result = await namespaceMappingRepo.addNamespaceCategoryMapping(namespace, categoryId);
+                    if (result) {
+                        Debug.print("Mapping added: " # namespace # " -> " # categoryId);
+                    } else {
+                        Debug.print("Failed to add mapping: " # namespace # " -> " # categoryId);
+                    };
+                };
+                Debug.print("ReputationActor.initialize: Namespace-category mapping initialization completed");
+
+                // Subscribe to reputation update events
                 ignore await client.subscribe(T.UPDATE_REPUTATION_NAMESPACE);
                 Debug.print("ReputationActor.initialize: Subscribed to " # T.UPDATE_REPUTATION_NAMESPACE);
+
             };
             case (null) {
                 Debug.print("ReputationActor.initialize: ICRC72 client not initialized, initialization failed");
-                return;
             };
         };
     };
@@ -255,6 +276,25 @@ actor class ReputationActor() = Self {
                 Debug.print("UseCaseFactory not initialized");
                 #err("UseCaseFactory not initialized");
             };
+        };
+    };
+
+    public func determineCategories(namespace : Text, documentUrl : ?Text) : async [Category.CategoryId] {
+        switch (apiHandler) {
+            case (?handler) {
+                let determineCategoriesUseCase = handler.getDetermineCategoriesUseCase();
+                await determineCategoriesUseCase.execute(namespace, documentUrl);
+            };
+            case (null) { [] };
+        };
+    };
+
+    public func getNamespacesForCategory(categoryId : Category.CategoryId) : async [Text] {
+        switch (apiHandler) {
+            case (?handler) {
+                await handler.getNamespacesForCategory(categoryId);
+            };
+            case (null) { [] };
         };
     };
 

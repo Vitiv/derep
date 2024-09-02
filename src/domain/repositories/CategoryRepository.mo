@@ -9,5 +9,6 @@ module {
         getCategoriesByParent : (?Category.CategoryId) -> async [Category.Category];
         deleteCategory : (Category.CategoryId) -> async Bool;
         clearAllCategories : () -> async Bool;
+        ensureCategoryHierarchy : (Text) -> async ();
     };
 };

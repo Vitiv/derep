@@ -78,7 +78,7 @@ actor TestReputationFlow {
             };
         };
 
-        // Step 4: Create test users (теперь проверяем существование перед созданием)
+        // Step 4: Create test users 
         await createUserIfNotExists({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() });
         await createUserIfNotExists({ id = testUserId2; username = "TestUser2"; registrationDate = Time.now() });
         Debug.print("✅ Step 4: Test users created or verified");
@@ -137,6 +137,9 @@ actor TestReputationFlow {
 
         // Step 15
         await testReputationHistory();
+
+        // Step 16
+        await testNamespaceCategoryMappings();
 
         Debug.print("✅ ✅ ✅ All test cases completed successfully!");
     };
@@ -232,6 +235,7 @@ actor TestReputationFlow {
 
     private func verifyReputation(userId : Principal, categoryId : Text, expectedScore : Int) : async () {
         let result = await ReputationActor.getUserReputation(userId, categoryId);
+        Debug.print("verifyReputation: result " # debug_show(result));
         switch (result) {
             case (#ok(reputation)) {
                 assert (reputation.score == expectedScore);
@@ -407,6 +411,10 @@ actor TestReputationFlow {
 
         assert(Result.isOk(categoryB1111));
         Debug.print("Category B.1.1.1.1 "# debug_show(categoryB1111));
+        Debug.print("Category B.1.1.1 "# debug_show(categoryB111));
+        Debug.print("Category B.1.1 "# debug_show(categoryB11));
+        Debug.print("Category B.1 "# debug_show(categoryB1));
+        Debug.print("Category B "# debug_show(categoryB));
 
         assert(Result.isOk(categoryB) or Result.isOk(categoryB1) or Result.isOk(categoryB11) or Result.isOk(categoryB111));
         Debug.print("At least some parent categories were created automatically");
@@ -444,6 +452,44 @@ actor TestReputationFlow {
        
 
         Debug.print("✅ Test case 15: Reputation History test passed");
+    };
+
+    private func testNamespaceCategoryMappings() : async () {
+        Debug.print("Test case 16: Starting Namespace-Category Mapping test");
+
+        let categoryId = "1.2.2"; // Internet Computer
+        let namespaces = ["icdevs", "dfinity", "icp"];
+
+        let testCategoryMappingUserId = Principal.toText(Principal.fromText("skqrs-7aaaa-aaaal-qcsmq-cai"));
+        let testCategoryMappingUser = { 
+            id = Principal.fromText(testCategoryMappingUserId); 
+            username = "TestCategoryMappingUser"; 
+            registrationDate = Time.now() 
+        };
+        await createUserIfNotExists(testCategoryMappingUser);
+        let testValue = 10;
+
+        // Publish event for every namespaces
+        for (namespace in namespaces.vals()) {
+            await TestCanister.publishReputationUpdateEvent(testCategoryMappingUserId, categoryId, testValue, Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai"), namespace);
+        };
+
+        for (namespace in namespaces.vals()) {
+            let reputation = await ReputationActor.getUserReputation(Principal.fromText(testCategoryMappingUserId), categoryId);
+            Debug.print("Test case 16:  getUserReputation result: " # debug_show(reputation));
+            switch (reputation) {
+                case (#ok(rep)) {
+                    assert(rep.score == (testValue * namespaces.size()));
+                    Debug.print("✅ Test case 16: Reputation updated correctly for namespace: " # namespace # " , rep: " # debug_show(rep));
+                };
+                case (#err(e)) {
+                    Debug.print("❌ Test case 16: Failed to get reputation for namespace " # namespace # ": " # e);
+                    assert(false);
+                };
+            };
+        };
+
+        Debug.print("✅ Test case 16: Namespace-Category Mapping test passed");
     };
 
     private func assertReputation(userId : Principal, categoryId : Text, expectedScore : Int) : async Bool {
