@@ -7,7 +7,7 @@ module {
         public func execute(userId : User.UserId) : async Bool {
             let repDeleted = await reputationRepo.deleteUserReputations(userId);
             let userDeleted = await userRepo.deleteUser(userId);
-            repDeleted and userDeleted;
+            repDeleted or userDeleted;
         };
     };
 };

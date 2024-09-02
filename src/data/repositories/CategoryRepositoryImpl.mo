@@ -1,7 +1,10 @@
-import Category "../../domain/entities/Category";
+import Debug "mo:base/Debug";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import Text "mo:base/Text";
+import Array "mo:base/Array";
+
+import Category "../../domain/entities/Category";
 
 module {
     public class CategoryRepositoryImpl() {
@@ -9,16 +12,29 @@ module {
 
         public func createCategory(category : Category.Category) : async Bool {
             switch (categories.get(category.id)) {
-                case (?_) { false }; // Category already exists
+                case (?_) {
+                    Debug.print("CategoryRepositoryImpl.createCategory: Category already exists: " # category.id);
+                    false;
+                };
                 case null {
                     categories.put(category.id, category);
+                    Debug.print("CategoryRepositoryImpl.createCategory: Category created: " # category.id);
                     true;
                 };
             };
         };
 
         public func getCategory(id : Category.CategoryId) : async ?Category.Category {
-            categories.get(id);
+            let result = categories.get(id);
+            switch (result) {
+                case (?category) {
+                    Debug.print("CategoryRepositoryImpl.getCategory: Found category: " # debug_show (category));
+                };
+                case (null) {
+                    Debug.print("CategoryRepositoryImpl.getCategory: Category not found for id: " # id);
+                };
+            };
+            result;
         };
 
         public func updateCategory(category : Category.Category) : async Bool {
@@ -55,6 +71,35 @@ module {
             switch (categories.remove(id)) {
                 case (null) { false };
                 case (?_) { true };
+            };
+        };
+
+        public func ensureCategoryHierarchy(categoryId : Text) : async () {
+            var currentId = categoryId;
+            while (currentId != "") {
+                switch (await getCategory(currentId)) {
+                    case (null) {
+                        let newCategory = {
+                            id = currentId;
+                            name = "Auto-generated category " # currentId;
+                            description = "Automatically created category";
+                            parentId = ?getParentId(currentId);
+                        };
+                        ignore await createCategory(newCategory);
+                    };
+                    case (?_) {};
+                };
+                currentId := getParentId(currentId);
+            };
+        };
+
+        private func getParentId(id : Text) : Text {
+            let parts = Iter.toArray(Text.split(id, #char '.'));
+            if (parts.size() <= 1) {
+                return "";
+            } else {
+                let parentParts = Array.tabulate<Text>(parts.size() - 1, func(i : Nat) : Text { parts[i] });
+                return Text.join(".", parentParts.vals());
             };
         };
     };

@@ -11,8 +11,8 @@ actor class TestCanister() = Self {
     type Namespace = T.Namespace;
     type EventNotification = T.EventNotification;
 
-    let increaseReputationNamespace : Namespace = "increase.reputation.ava";
-    let updateReputationNamespace : Namespace = "update.reputation.ava";
+    let increaseReputationNamespace : Namespace = T.INCREASE_REPUTATION_NAMESPACE;
+    let updateReputationNamespace : Namespace = T.UPDATE_REPUTATION_NAMESPACE;
 
     private var icrc72Client : ?ICRC72Client.ICRC72ClientImpl = null;
 
