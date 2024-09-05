@@ -5,7 +5,7 @@ import Principal "mo:base/Principal";
 
 module {
     public class UserRepositoryImpl() {
-        private var users = HashMap.HashMap<User.UserId, User.User>(10, Principal.equal, Principal.hash);
+        public var users = HashMap.HashMap<User.UserId, User.User>(10, Principal.equal, Principal.hash);
 
         public func createUser(user : User.User) : async Bool {
             switch (users.get(user.id)) {

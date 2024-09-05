@@ -19,6 +19,9 @@ import PublishEventUseCase "./PublishEventUseCase";
 import ReputationHistoryUseCase "./ReputationHistoryUseCase";
 import UpdateReputationUseCase "./UpdateReputationUseCase";
 import DetermineCategoriesUseCase "./DetermineCategoriesUseCase";
+import DocumentRepository "../repositories/DocumentRepository";
+import ManageDocumentsUseCase "./ManageDocumentsUseCase";
+import ProcessIncomingFileUseCase "./ProcessIncomingFileUseCase";
 
 module {
     public class UseCaseFactory(
@@ -31,9 +34,18 @@ module {
         icrc72Client : ICRC72Client.ICRC72ClientImpl,
         namespaceCategoryMapper : NamespaceCategoryMapper.NamespaceCategoryMapper,
         documentClassifier : DocumentClassifier.DocumentClassifier,
+        documentRepo : DocumentRepository.DocumentRepository,
     ) {
         public func getManageCategoriesUseCase() : ManageCategoriesUseCase.ManageCategoriesUseCase {
             ManageCategoriesUseCase.ManageCategoriesUseCase(categoryRepo);
+        };
+
+        public func getManageDocumentsUseCase() : ManageDocumentsUseCase.ManageDocumentsUseCase {
+            ManageDocumentsUseCase.ManageDocumentsUseCase(documentRepo);
+        };
+
+        public func getProcessIncomingFileUseCase() : ProcessIncomingFileUseCase.ProcessIncomingFileUseCase {
+            ProcessIncomingFileUseCase.ProcessIncomingFileUseCase(documentRepo);
         };
 
         public func getUpdateReputationUseCase() : UpdateReputationUseCase.UpdateReputationUseCase {
