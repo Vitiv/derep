@@ -29,6 +29,21 @@ module {
             await manageDocumentsUseCase.getDocument(id);
         };
 
+        public func updateDocument(doc : Document.Document) : async Result.Result<(), Text> {
+            let manageDocumentsUseCase = useCaseFactory.getManageDocumentsUseCase();
+            await manageDocumentsUseCase.updateDocument(doc);
+        };
+
+        public func listUserDocuments(userId : Principal) : async Result.Result<[Document.Document], Text> {
+            let manageDocumentsUseCase = useCaseFactory.getManageDocumentsUseCase();
+            await manageDocumentsUseCase.listUserDocuments(userId);
+        };
+
+        public func deleteDocument(id : Document.DocumentId) : async Result.Result<(), Text> {
+            let manageDocumentsUseCase = useCaseFactory.getManageDocumentsUseCase();
+            await manageDocumentsUseCase.deleteDocument(id);
+        };
+
         public func getReputationHistoryUseCase() : ReputationHistoryUseCase.ReputationHistoryUseCase {
             useCaseFactory.getReputationHistoryUseCase();
         };

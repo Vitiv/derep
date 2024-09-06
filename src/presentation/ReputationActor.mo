@@ -320,6 +320,27 @@ actor class ReputationActor() = Self {
         };
     };
 
+    public shared func updateDocument(doc : Document.Document) : async Result.Result<(), Text> {
+        switch (apiHandler) {
+            case (?handler) { await handler.updateDocument(doc) };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public func listUserDocuments(user : Principal) : async Result.Result<[Document.Document], Text> {
+        switch (apiHandler) {
+            case (?handler) { await handler.listUserDocuments(user) };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public shared func deleteDocument(id : Document.DocumentId) : async Result.Result<(), Text> {
+        switch (apiHandler) {
+            case (?handler) { await handler.deleteDocument(id) };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
     // System methods remain unchanged
     system func preupgrade() {
         // Implement state preservation logic if needed

@@ -547,89 +547,89 @@ actor TestReputationFlow {
         };
 
         // Test 3: Update the document
-        // switch (documentId) {
-        //     case (?id) {
-        //         let updatedDocument : Document.Document = {
-        //             id = id;
-        //             name = "updated_document.txt";
-        //             content = Text.encodeUtf8("This is an updated document content.");
-        //             contentType = "text/plain";
-        //             size = 36;
-        //             hash = "updated_hash";
-        //             source = "test_source";
-        //             user = testUser;
-        //             createdAt = Time.now();
-        //             updatedAt = Time.now();
-        //         };
-        //         let updateResult = await ReputationActor.updateDocument(updatedDocument);
-        //         switch (updateResult) {
-        //             case (#ok(_)) {
-        //                 Debug.print("✅ Test 3: Document updated successfully");
-        //             };
-        //             case (#err(e)) {
-        //                 Debug.print("❌ Test 3: Failed to update document: " # e);
-        //                 assert(false);
-        //             };
-        //         };
-        //     };
-        //     case (null) {
-        //         Debug.print("❌ Test 3: No document ID available for update");
-        //         assert(false);
-        //     };
-        // };
+        switch (documentId) {
+            case (?id) {
+                let updatedDocument = {
+                    id = id;
+                    name = "updated_document.txt";
+                    content = Blob.toArray(Text.encodeUtf8("This is an updated document content."));
+                    contentType = "text/plain";
+                    size = 36;
+                    hash = "updated_hash";
+                    source = "test_source";
+                    user = testUser;
+                    createdAt = Time.now();
+                    updatedAt = Time.now();
+                };
+                let updateResult = await ReputationActor.updateDocument(updatedDocument);
+                switch (updateResult) {
+                    case (#ok(_)) {
+                        Debug.print("✅ Test 3: Document updated successfully");
+                    };
+                    case (#err(e)) {
+                        Debug.print("❌ Test 3: Failed to update document: " # e);
+                        assert(false);
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 3: No document ID available for update");
+                assert(false);
+            };
+        };
 
-        // // Test 4: List user documents
-        // let listResult = await ReputationActor.listUserDocuments(testUser);
-        // switch (listResult) {
-        //     case (#ok(docs)) {
-        //         Debug.print("✅ Test 4: Retrieved user documents: " # debug_show(docs));
-        //         assert(docs.size() > 0);
-        //     };
-        //     case (#err(e)) {
-        //         Debug.print("❌ Test 4: Failed to list user documents: " # e);
-        //         assert(false);
-        //     };
-        // };
+        // Test 4: List user documents
+        let listResult = await ReputationActor.listUserDocuments(testUser);
+        switch (listResult) {
+            case (#ok(docs)) {
+                Debug.print("✅ Test 4: Retrieved user documents: " # debug_show(docs));
+                assert(docs.size() > 0);
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 4: Failed to list user documents: " # e);
+                assert(false);
+            };
+        };
 
-        // // Test 5: Delete the document
-        // switch (documentId) {
-        //     case (?id) {
-        //         let deleteResult = await ReputationActor.deleteDocument(id);
-        //         switch (deleteResult) {
-        //             case (#ok(_)) {
-        //                 Debug.print("✅ Test 5: Document deleted successfully");
-        //             };
-        //             case (#err(e)) {
-        //                 Debug.print("❌ Test 5: Failed to delete document: " # e);
-        //                 assert(false);
-        //             };
-        //         };
-        //     };
-        //     case (null) {
-        //         Debug.print("❌ Test 5: No document ID available for deletion");
-        //         assert(false);
-        //     };
-        // };
+        // Test 5: Delete the document
+        switch (documentId) {
+            case (?id) {
+                let deleteResult = await ReputationActor.deleteDocument(id);
+                switch (deleteResult) {
+                    case (#ok(_)) {
+                        Debug.print("✅ Test 5: Document deleted successfully");
+                    };
+                    case (#err(e)) {
+                        Debug.print("❌ Test 5: Failed to delete document: " # e);
+                        assert(false);
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 5: No document ID available for deletion");
+                assert(false);
+            };
+        };
 
-        // // Test 6: Attempt to get the deleted document (should fail)
-        // switch (documentId) {
-        //     case (?id) {
-        //         let getDeletedResult = await ReputationActor.getDocument(id);
-        //         switch (getDeletedResult) {
-        //             case (#ok(_)) {
-        //                 Debug.print("❌ Test 6: Retrieved deleted document, expected an error");
-        //                 assert(false);
-        //             };
-        //             case (#err(_)) {
-        //                 Debug.print("✅ Test 6: Correctly failed to retrieve deleted document");
-        //             };
-        //         };
-        //     };
-        //     case (null) {
-        //         Debug.print("❌ Test 6: No document ID available for retrieval test");
-        //         assert(false);
-        //     };
-        // };
+        // Test 6: Attempt to get the deleted document (should fail)
+        switch (documentId) {
+            case (?id) {
+                let getDeletedResult = await ReputationActor.getDocument(id);
+                switch (getDeletedResult) {
+                    case (#ok(_)) {
+                        Debug.print("❌ Test 6: Retrieved deleted document, expected an error");
+                        assert(false);
+                    };
+                    case (#err(_)) {
+                        Debug.print("✅ Test 6: Correctly failed to retrieve deleted document");
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 6: No document ID available for retrieval test");
+                assert(false);
+            };
+        };
 
         Debug.print("✅ All Document Management tests passed successfully!");
     };
