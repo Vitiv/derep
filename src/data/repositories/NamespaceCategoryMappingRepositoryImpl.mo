@@ -7,8 +7,9 @@ import ArrayUtils "../../../utils/ArrayUtils";
 
 module {
     public class NamespaceCategoryMappingRepositoryImpl() {
-        private var mappings = HashMap.HashMap<Text, [Category.CategoryId]>(10, Text.equal, Text.hash);
-        private var reverseMappings = HashMap.HashMap<Category.CategoryId, [Text]>(10, Text.equal, Text.hash);
+
+        public var mappings = HashMap.HashMap<Text, [Category.CategoryId]>(10, Text.equal, Text.hash);
+        public var reverseMappings = HashMap.HashMap<Category.CategoryId, [Text]>(10, Text.equal, Text.hash);       
 
         public func getCategoriesForNamespace(namespace : Text) : async [Category.CategoryId] {
             switch (mappings.get(namespace)) {

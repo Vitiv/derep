@@ -5,7 +5,7 @@ import ArrayUtils "../../../utils/ArrayUtils";
 
 module {
     public class NotificationRepositoryImpl() {
-        private var notificationMap = HashMap.HashMap<T.Namespace, [T.EventNotification]>(10, Text.equal, Text.hash);
+        public var notificationMap = HashMap.HashMap<T.Namespace, [T.EventNotification]>(10, Text.equal, Text.hash);
 
         public func storeNotification(notification : T.EventNotification) : async () {
             let namespace = notification.namespace;

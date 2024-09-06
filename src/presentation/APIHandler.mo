@@ -3,18 +3,45 @@ import Result "mo:base/Result";
 import Text "mo:base/Text";
 
 import Category "../domain/entities/Category";
+import Document "../domain/entities/Document";
 import Reputation "../domain/entities/Reputation";
-import User "../domain/entities/User";
 import T "../domain/entities/Types";
-import UseCaseFactory "../domain/use_cases/UseCaseFactory";
-import ReputationHistoryUseCase "../domain/use_cases/ReputationHistoryUseCase";
+import User "../domain/entities/User";
 import DetermineCategoriesUseCase "../domain/use_cases/DetermineCategoriesUseCase";
+import ReputationHistoryUseCase "../domain/use_cases/ReputationHistoryUseCase";
+import UseCaseFactory "../domain/use_cases/UseCaseFactory";
+import IncomingFile "../domain/entities/IncomingFile";
 
 module {
     public class APIHandler(useCaseFactory : UseCaseFactory.UseCaseFactory) {
         public func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<(), Text> {
             let updateReputationUseCase = useCaseFactory.getUpdateReputationUseCase();
             await updateReputationUseCase.execute(user, category, value);
+        };
+
+        public func processIncomingFile(file : IncomingFile.IncomingFile, caller : Principal) : async Result.Result<Document.DocumentId, Text> {
+            let processIncomingFileUseCase = useCaseFactory.getProcessIncomingFileUseCase();
+            await processIncomingFileUseCase.execute(file, caller);
+        };
+
+        public func getDocument(id : Document.DocumentId) : async Result.Result<Document.Document, Text> {
+            let manageDocumentsUseCase = useCaseFactory.getManageDocumentsUseCase();
+            await manageDocumentsUseCase.getDocument(id);
+        };
+
+        public func updateDocument(doc : Document.Document) : async Result.Result<(), Text> {
+            let manageDocumentsUseCase = useCaseFactory.getManageDocumentsUseCase();
+            await manageDocumentsUseCase.updateDocument(doc);
+        };
+
+        public func listUserDocuments(userId : Principal) : async Result.Result<[Document.Document], Text> {
+            let manageDocumentsUseCase = useCaseFactory.getManageDocumentsUseCase();
+            await manageDocumentsUseCase.listUserDocuments(userId);
+        };
+
+        public func deleteDocument(id : Document.DocumentId) : async Result.Result<(), Text> {
+            let manageDocumentsUseCase = useCaseFactory.getManageDocumentsUseCase();
+            await manageDocumentsUseCase.deleteDocument(id);
         };
 
         public func getReputationHistoryUseCase() : ReputationHistoryUseCase.ReputationHistoryUseCase {

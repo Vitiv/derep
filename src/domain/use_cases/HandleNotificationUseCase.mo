@@ -1,22 +1,26 @@
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 import Array "mo:base/Array";
-import Buffer "mo:base/Buffer";
 import Text "mo:base/Text";
 import Iter "mo:base/Iter";
-import Option "mo:base/Option";
+import Principal "mo:base/Principal";
+import Nat "mo:base/Nat";
+import Nat32 "mo:base/Nat32";
+import Char "mo:base/Char";
 import T "../entities/Types";
 import NamespaceCategoryMapper "../services/NamespaceCategoryMapper";
 import UpdateReputationUseCase "./UpdateReputationUseCase";
-import Category "../entities/Category";
 import ArrayUtils "../../../utils/ArrayUtils";
 import CategoryRepository "../repositories/CategoryRepository";
+import DocumentRepository "../repositories/DocumentRepository";
+import Document "../entities/Document";
 
 module {
     public class HandleNotificationUseCase(
         namespaceCategoryMapper : NamespaceCategoryMapper.NamespaceCategoryMapper,
         updateReputationUseCase : UpdateReputationUseCase.UpdateReputationUseCase,
         categoryRepo : CategoryRepository.CategoryRepository,
+        documentRepo : DocumentRepository.DocumentRepository,
     ) {
         public func execute(notification : T.EventNotification) : async () {
             Debug.print("Processing event notification: " # debug_show (notification));
@@ -27,10 +31,36 @@ module {
                     case (#ok(data)) {
                         Debug.print("Parsed reputation update data: " # debug_show (data));
 
-                        let documentUrl = getDocumentUrlFromNotification(notification);
-                        let categories = await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace, documentUrl, data.category);
+                        let documentId = getDocumentIdFromNotification(notification);
+                        var documentContentType : ?Text = null;
+
+                        switch (documentId) {
+                            case (?id) {
+                                Debug.print("Verifying document with ID: " # Nat.toText(id));
+                                switch (await documentRepo.getDocument(id)) {
+                                    case (#ok(document)) {
+                                        Debug.print("Document found: " # debug_show (document));
+                                        documentContentType := ?document.contentType;
+                                    };
+                                    case (#err(e)) {
+                                        Debug.print("Document not found: " # e);
+                                    };
+                                };
+                            };
+                            case (null) {
+                                Debug.print("No document ID in notification");
+                            };
+                        };
+
+                        var categories = await namespaceCategoryMapper.mapNamespaceToCategories(notification.namespace, documentContentType, data.category);
                         Debug.print("Mapped categories: " # debug_show (categories));
 
+                        if (categories.size() == 0) {
+                            Debug.print("No categories matched. Using default category.");
+                            categories := [T.DEFAULT_CATEGORY];
+                        };
+
+                        // Ensure category hierarchy for all categories
                         for (category in categories.vals()) {
                             if (category != "") {
                                 let existCategories = await ensureCategoryHierarchy(category);
@@ -58,10 +88,37 @@ module {
             };
         };
 
-        private func getDocumentUrlFromNotification(notification : T.EventNotification) : ?Text {
-            // Implement logic to extract document URL from notification
-            // This is a placeholder implementation
+        private func getDocumentIdFromNotification(notification : T.EventNotification) : ?Document.DocumentId {
+            switch (notification.data) {
+                case (#Map(dataMap)) {
+                    for ((key, value) in dataMap.vals()) {
+                        if (key == "documentId") {
+                            switch (value) {
+                                case (#Nat(docId)) {
+                                    return ?docId;
+                                };
+                                case (#Text(docIdText)) {
+                                    return textToNat(docIdText);
+                                };
+                                case _ { /* Ignore other types */ };
+                            };
+                        };
+                    };
+                };
+                case _ { /* Ignore other data types */ };
+            };
             null;
+        };
+
+        private func textToNat(text : Text) : ?Nat {
+            var result : Nat = 0;
+            for (c in text.chars()) {
+                if (c < '0' or c > '9') {
+                    return null; // Invalid character
+                };
+                result := result * 10 + Nat32.toNat(Char.toNat32(c) - 48);
+            };
+            ?result;
         };
 
         private func parseReputationUpdateNotification(notification : T.EventNotification) : Result.Result<T.ReputationUpdateInfo, Text> {

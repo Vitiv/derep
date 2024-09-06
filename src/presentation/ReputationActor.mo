@@ -1,27 +1,28 @@
 import Debug "mo:base/Debug";
+import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
-import Option "mo:base/Option";
-import Error "mo:base/Error";
-
+import InitialCategories "../data/datasources/InitialCategories";
+import NamespaceDictionary "../data/datasources/NamespaceDictionary";
 import CategoryRepositoryImpl "../data/repositories/CategoryRepositoryImpl";
+import DocumentRepositoryImpl "../data/repositories/DocumentRepositoryImpl";
+import NamespaceCategoryMappingRepositoryImpl "../data/repositories/NamespaceCategoryMappingRepositoryImpl";
 import NotificationRepositoryImpl "../data/repositories/NotificationRepositoryImpl";
+import ReputationHistoryRepositoryImpl "../data/repositories/ReputationHistoryRepositoryImpl";
 import ReputationRepositoryImpl "../data/repositories/ReputationRepositoryImpl";
 import UserRepositoryImpl "../data/repositories/UserRepositoryImpl";
 import Category "../domain/entities/Category";
+import Document "../domain/entities/Document";
+import IncomingFile "../domain/entities/IncomingFile";
 import Reputation "../domain/entities/Reputation";
+import ReputationHistoryTypes "../domain/entities/ReputationHistoryTypes";
 import T "../domain/entities/Types";
 import User "../domain/entities/User";
+import DocumentClassifier "../domain/services/DocumentClassifier";
 import NamespaceCategoryMapper "../domain/services/NamespaceCategoryMapper";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
 import ICRC72Client "../infrastructure/ICRC72Client";
 import APIHandler "./APIHandler";
-import ReputationHistoryRepositoryImpl "../data/repositories/ReputationHistoryRepositoryImpl";
-import ReputationHistoryTypes "../domain/entities/ReputationHistoryTypes";
-import NamespaceDictionary "../data/datasources/NamespaceDictionary";
-import NamespaceCategoryMappingRepositoryImpl "../data/repositories/NamespaceCategoryMappingRepositoryImpl";
-import DocumentClassifier "../domain/services/DocumentClassifier";
-import InitialCategories "../data/datasources/InitialCategories";
 
 actor class ReputationActor() = Self {
     private var apiHandler : ?APIHandler.APIHandler = null;
@@ -34,6 +35,7 @@ actor class ReputationActor() = Self {
         let notificationRepo = NotificationRepositoryImpl.NotificationRepositoryImpl();
         let reputationHistoryRepo = ReputationHistoryRepositoryImpl.ReputationHistoryRepositoryImpl();
         let namespaceMappingRepo = NamespaceCategoryMappingRepositoryImpl.NamespaceCategoryMappingRepositoryImpl();
+        let documentRepo = DocumentRepositoryImpl.DocumentRepositoryImpl();
 
         let broadcaster = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // TODO: replace with actual broadcaster Principal
         icrc72Client := ?ICRC72Client.ICRC72ClientImpl(broadcaster, Principal.fromActor(Self));
@@ -54,6 +56,7 @@ actor class ReputationActor() = Self {
                     client,
                     namespaceCategoryMapper,
                     documentClassifier,
+                    documentRepo,
                 );
 
                 apiHandler := ?APIHandler.APIHandler(useCaseFactory);
@@ -271,6 +274,7 @@ actor class ReputationActor() = Self {
                     Debug.print("Error getting reputation history: " # Error.message(error));
                     #err("Failed to get reputation history");
                 };
+                result;
             };
             case (null) {
                 Debug.print("UseCaseFactory not initialized");
@@ -295,6 +299,45 @@ actor class ReputationActor() = Self {
                 await handler.getNamespacesForCategory(categoryId);
             };
             case (null) { [] };
+        };
+    };
+
+    // ----------------------------------Document Part ---------------------
+
+    public shared (msg) func uploadDocument(file : IncomingFile.IncomingFile) : async Result.Result<Document.DocumentId, Text> {
+        switch (apiHandler) {
+            case (?handler) {
+                await handler.processIncomingFile(file, msg.caller);
+            };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public func getDocument(id : Document.DocumentId) : async Result.Result<Document.Document, Text> {
+        switch (apiHandler) {
+            case (?handler) { await handler.getDocument(id) };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public shared func updateDocument(doc : Document.Document) : async Result.Result<(), Text> {
+        switch (apiHandler) {
+            case (?handler) { await handler.updateDocument(doc) };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public func listUserDocuments(user : Principal) : async Result.Result<[Document.Document], Text> {
+        switch (apiHandler) {
+            case (?handler) { await handler.listUserDocuments(user) };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public shared func deleteDocument(id : Document.DocumentId) : async Result.Result<(), Text> {
+        switch (apiHandler) {
+            case (?handler) { await handler.deleteDocument(id) };
+            case (null) { #err("API Handler not initialized") };
         };
     };
 
