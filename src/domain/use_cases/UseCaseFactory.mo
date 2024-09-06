@@ -36,6 +36,15 @@ module {
         documentClassifier : DocumentClassifier.DocumentClassifier,
         documentRepo : DocumentRepository.DocumentRepository,
     ) {
+        public func getHandleNotificationUseCase() : HandleNotificationUseCase.HandleNotificationUseCase {
+            HandleNotificationUseCase.HandleNotificationUseCase(
+                namespaceCategoryMapper,
+                getUpdateReputationUseCase(),
+                categoryRepo,
+                documentRepo,
+            );
+        };
+
         public func getManageCategoriesUseCase() : ManageCategoriesUseCase.ManageCategoriesUseCase {
             ManageCategoriesUseCase.ManageCategoriesUseCase(categoryRepo);
         };
@@ -59,14 +68,6 @@ module {
 
         public func getGetUserReputationUseCase() : GetUserReputationUseCase.GetUserReputationUseCase {
             GetUserReputationUseCase.GetUserReputationUseCase(reputationRepo);
-        };
-
-        public func getHandleNotificationUseCase() : HandleNotificationUseCase.HandleNotificationUseCase {
-            HandleNotificationUseCase.HandleNotificationUseCase(
-                namespaceCategoryMapper,
-                getUpdateReputationUseCase(),
-                categoryRepo,
-            );
         };
 
         public func getPublishEventUseCase() : PublishEventUseCase.PublishEventUseCase {

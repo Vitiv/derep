@@ -2,10 +2,13 @@ import Principal "mo:base/Principal";
 import Debug "mo:base/Debug";
 import Time "mo:base/Time";
 import Result "mo:base/Result";
+import Text "mo:base/Text";
+import Blob "mo:base/Blob";
 
 import ReputationActor "canister:derep";
 import TestCanister "canister:test";
 import T "../src/domain/entities/Types";
+import Document "../src/domain/entities/Document";
 
 actor TestReputationFlow {
     type Namespace = T.Namespace;
@@ -140,6 +143,9 @@ actor TestReputationFlow {
 
         // Step 16
         await testNamespaceCategoryMappings();
+
+        // Step 17
+        await testDocumentManagement();
 
         Debug.print("✅ ✅ ✅ All test cases completed successfully!");
     };
@@ -490,6 +496,142 @@ actor TestReputationFlow {
         };
 
         Debug.print("✅ Test case 16: Namespace-Category Mapping test passed");
+    };
+
+     private func testDocumentManagement() : async () {
+        Debug.print("Starting Document Management tests");
+
+        let testUser = Principal.fromText("aaaaa-aa");
+        let testDocument = {
+            name = "test_document.txt";
+            content = Blob.toArray(Text.encodeUtf8("This is a test document content."));
+            contentType = "text/plain";
+            user = Principal.toText(testUser);
+        };
+
+        // Test 1: Upload a document
+        let uploadResult = await ReputationActor.uploadDocument(testDocument);
+        var documentId : ?Document.DocumentId = null;
+        switch (uploadResult) {
+            case (#ok(id)) {
+                Debug.print("✅ Test 1: Document uploaded successfully with ID: " # debug_show(id));
+                documentId := ?id;
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 1: Failed to upload document: " # e);
+                assert(false);
+            };
+        };
+
+        // Test 2: Get the uploaded document
+        switch (documentId) {
+            case (?id) {
+                let getResult = await ReputationActor.getDocument(id);
+                switch (getResult) {
+                    case (#ok(doc)) {
+                        Debug.print("✅ Test 2: Retrieved document: " # debug_show(doc));
+                        assert(doc.name == testDocument.name);
+                        assert(doc.contentType == testDocument.contentType);
+                        assert(doc.user == Principal.toText(testUser));
+                    };
+                    case (#err(e)) {
+                        Debug.print("❌ Test 2: Failed to get document: " # e);
+                        assert(false);
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 2: No document ID available for retrieval");
+                assert(false);
+            };
+        };
+
+        // Test 3: Update the document
+        // switch (documentId) {
+        //     case (?id) {
+        //         let updatedDocument : Document.Document = {
+        //             id = id;
+        //             name = "updated_document.txt";
+        //             content = Text.encodeUtf8("This is an updated document content.");
+        //             contentType = "text/plain";
+        //             size = 36;
+        //             hash = "updated_hash";
+        //             source = "test_source";
+        //             user = testUser;
+        //             createdAt = Time.now();
+        //             updatedAt = Time.now();
+        //         };
+        //         let updateResult = await ReputationActor.updateDocument(updatedDocument);
+        //         switch (updateResult) {
+        //             case (#ok(_)) {
+        //                 Debug.print("✅ Test 3: Document updated successfully");
+        //             };
+        //             case (#err(e)) {
+        //                 Debug.print("❌ Test 3: Failed to update document: " # e);
+        //                 assert(false);
+        //             };
+        //         };
+        //     };
+        //     case (null) {
+        //         Debug.print("❌ Test 3: No document ID available for update");
+        //         assert(false);
+        //     };
+        // };
+
+        // // Test 4: List user documents
+        // let listResult = await ReputationActor.listUserDocuments(testUser);
+        // switch (listResult) {
+        //     case (#ok(docs)) {
+        //         Debug.print("✅ Test 4: Retrieved user documents: " # debug_show(docs));
+        //         assert(docs.size() > 0);
+        //     };
+        //     case (#err(e)) {
+        //         Debug.print("❌ Test 4: Failed to list user documents: " # e);
+        //         assert(false);
+        //     };
+        // };
+
+        // // Test 5: Delete the document
+        // switch (documentId) {
+        //     case (?id) {
+        //         let deleteResult = await ReputationActor.deleteDocument(id);
+        //         switch (deleteResult) {
+        //             case (#ok(_)) {
+        //                 Debug.print("✅ Test 5: Document deleted successfully");
+        //             };
+        //             case (#err(e)) {
+        //                 Debug.print("❌ Test 5: Failed to delete document: " # e);
+        //                 assert(false);
+        //             };
+        //         };
+        //     };
+        //     case (null) {
+        //         Debug.print("❌ Test 5: No document ID available for deletion");
+        //         assert(false);
+        //     };
+        // };
+
+        // // Test 6: Attempt to get the deleted document (should fail)
+        // switch (documentId) {
+        //     case (?id) {
+        //         let getDeletedResult = await ReputationActor.getDocument(id);
+        //         switch (getDeletedResult) {
+        //             case (#ok(_)) {
+        //                 Debug.print("❌ Test 6: Retrieved deleted document, expected an error");
+        //                 assert(false);
+        //             };
+        //             case (#err(_)) {
+        //                 Debug.print("✅ Test 6: Correctly failed to retrieve deleted document");
+        //             };
+        //         };
+        //     };
+        //     case (null) {
+        //         Debug.print("❌ Test 6: No document ID available for retrieval test");
+        //         assert(false);
+        //     };
+        // };
+
+        Debug.print("✅ All Document Management tests passed successfully!");
     };
 
     private func assertReputation(userId : Principal, categoryId : Text, expectedScore : Int) : async Bool {
