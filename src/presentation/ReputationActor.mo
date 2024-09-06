@@ -2,7 +2,6 @@ import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
-
 import InitialCategories "../data/datasources/InitialCategories";
 import NamespaceDictionary "../data/datasources/NamespaceDictionary";
 import CategoryRepositoryImpl "../data/repositories/CategoryRepositoryImpl";
@@ -275,6 +274,7 @@ actor class ReputationActor() = Self {
                     Debug.print("Error getting reputation history: " # Error.message(error));
                     #err("Failed to get reputation history");
                 };
+                result;
             };
             case (null) {
                 Debug.print("UseCaseFactory not initialized");
