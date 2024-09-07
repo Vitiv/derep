@@ -8,6 +8,7 @@ import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Debug "mo:base/Debug";
+import Nat8 "mo:base/Nat8";
 import SHA256 "mo:sha2/Sha256";
 import UserRepository "../repositories/UserRepository";
 import CategoryRepository "../repositories/CategoryRepository";
@@ -36,10 +37,9 @@ module {
             let now = Time.now();
             let size = Blob.toArray(file.content).size();
             let hash = SHA256.fromBlob(#sha256, file.content);
-            let decoded_text : Text = switch (Text.decodeUtf8(hash)) {
-                case (null) { "No value returned" };
-                case (?y) { y };
-            };
+            // Debug.print("ProcessIncomingFileUseCase: hash: " # debug_show (hash));
+            let hashText = bytesToHex(Blob.toArray(hash));
+            // Debug.print("ProcessIncomingFileUseCase: hashText: " # debug_show (hashText));
 
             // Validate categories
             for (categoryId in file.categories.vals()) {
@@ -55,7 +55,7 @@ module {
                 content = file.content;
                 contentType = file.contentType;
                 size = size;
-                hash = decoded_text;
+                hash = hashText;
                 source = Principal.toText(caller);
                 sourceUrl = file.sourceUrl;
                 user = caller;
@@ -95,6 +95,16 @@ module {
                     #err(e);
                 };
             };
+        };
+
+        func bytesToHex(bytes : [Nat8]) : Text {
+            let hexChars = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"];
+            var result = "";
+            for (byte in bytes.vals()) {
+                result #= hexChars[Nat8.toNat(byte / 16)];
+                result #= hexChars[Nat8.toNat(byte % 16)];
+            };
+            result;
         };
     };
 };
