@@ -14,7 +14,7 @@ module {
         categoryRepo : CategoryRepository.CategoryRepository,
         reputationHistoryUseCase : ReputationHistoryUseCase.ReputationHistoryUseCase,
     ) {
-        public func execute(userId : User.UserId, categoryId : Category.CategoryId, value : Int) : async Result.Result<(), Text> {
+        public func execute(userId : User.UserId, categoryId : Category.CategoryId, value : Int) : async Result.Result<Int, Text> {
             await categoryRepo.ensureCategoryHierarchy(categoryId);
             // Validate user existence
             switch (await userRepo.getUser(userId)) {
@@ -29,7 +29,7 @@ module {
                     let updatedReputation = Reputation.updateScore(reputation, newScore);
                     if (await reputationRepo.updateReputation(updatedReputation)) {
                         await reputationHistoryUseCase.addReputationChange(userId, categoryId, value);
-                        #ok(());
+                        #ok(newScore);
                     } else {
                         #err("Failed to update reputation");
                     };
@@ -39,12 +39,31 @@ module {
                     let initializedReputation = Reputation.updateScore(newReputation, value);
                     if (await reputationRepo.updateReputation(initializedReputation)) {
                         await reputationHistoryUseCase.addReputationChange(userId, categoryId, value);
-                        #ok(());
+                        #ok(newReputation.score);
                     } else {
                         #err("Failed to create new reputation");
                     };
                 };
             };
         };
+
+        public func assignTemporaryReputation(userId : User.UserId, contentType : Text) : async Result.Result<Int, Text> {
+            let tempValue = 1; // Define a small temporary reputation value
+            let category = await determineCategoryFromContentType(contentType);
+            await execute(userId, category, tempValue);
+        };
+
+        public func assignFullReputation(userId : User.UserId, contentType : Text) : async Result.Result<Int, Text> {
+            let fullValue = 10; // Define the full reputation value
+            let category = await determineCategoryFromContentType(contentType);
+            await execute(userId, category, fullValue);
+        };
+
+        private func determineCategoryFromContentType(contentType : Text) : async Category.CategoryId {
+            // Implement logic to determine category based on content type
+            // For now, we'll just return a default category
+            "1.2.2" // Internet Computer category
+        };
+
     };
 };

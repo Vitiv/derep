@@ -6,5 +6,6 @@ module {
         content : Blob;
         contentType : Text;
         user : Text;
+        sourceUrl : ?Text;
     };
 };

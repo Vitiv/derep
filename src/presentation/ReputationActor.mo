@@ -105,7 +105,7 @@ actor class ReputationActor() = Self {
         };
     };
 
-    public shared func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<(), Text> {
+    public shared func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<Int, Text> {
         switch (apiHandler) {
             case (?handler) {
                 await handler.updateReputation(user, category, value);
@@ -305,9 +305,29 @@ actor class ReputationActor() = Self {
     // ----------------------------------Document Part ---------------------
 
     public shared (msg) func uploadDocument(file : IncomingFile.IncomingFile) : async Result.Result<Document.DocumentId, Text> {
+        Debug.print("ReputationActor: Uploading document for user " # Principal.toText(msg.caller));
         switch (apiHandler) {
             case (?handler) {
-                await handler.processIncomingFile(file, msg.caller);
+                let incomingFile : IncomingFile.IncomingFile = {
+                    name = file.name;
+                    content = file.content;
+                    contentType = file.contentType;
+                    user = Principal.toText(msg.caller);
+                    sourceUrl = file.sourceUrl; // Now we include sourceUrl
+                };
+                await handler.processIncomingFile(incomingFile, msg.caller);
+            };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public shared (msg) func verifyDocumentSource(documentId : Document.DocumentId) : async Result.Result<(), Text> {
+        switch (apiHandler) {
+            case (?handler) {
+                Debug.print("ReputationActor: Verifying document source for ID: " # debug_show (documentId));
+                let result = await handler.verifyDocumentSource(documentId, Principal.toText(msg.caller));
+                Debug.print("ReputationActor: Verification result: " # debug_show (result));
+                result;
             };
             case (null) { #err("API Handler not initialized") };
         };
@@ -320,7 +340,7 @@ actor class ReputationActor() = Self {
         };
     };
 
-    public shared func updateDocument(doc : Document.Document) : async Result.Result<(), Text> {
+    public shared func updateDocument(doc : Document.Document) : async Result.Result<Int, Text> {
         switch (apiHandler) {
             case (?handler) { await handler.updateDocument(doc) };
             case (null) { #err("API Handler not initialized") };
@@ -338,6 +358,17 @@ actor class ReputationActor() = Self {
         switch (apiHandler) {
             case (?handler) { await handler.deleteDocument(id) };
             case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public func getDocumentVersions(id : Document.DocumentId) : async Result.Result<[Document.Document], Text> {
+        switch (apiHandler) {
+            case (?handler) {
+                await handler.getDocumentVersions(id);
+            };
+            case (null) {
+                #err("API Handler not initialized");
+            };
         };
     };
 

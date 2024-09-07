@@ -4,7 +4,7 @@ import Result "mo:base/Result";
 
 module {
     public class ManageDocumentsUseCase(documentRepo : DocumentRepository.DocumentRepository) {
-        public func uploadDocument(doc : Document.Document) : async Result.Result<(), Text> {
+        public func uploadDocument(doc : Document.Document) : async Result.Result<Int, Text> {
             await documentRepo.createDocument(doc);
         };
 
@@ -12,7 +12,7 @@ module {
             await documentRepo.getDocument(id);
         };
 
-        public func updateDocument(doc : Document.Document) : async Result.Result<(), Text> {
+        public func updateDocument(doc : Document.Document) : async Result.Result<Nat, Text> {
             await documentRepo.updateDocument(doc);
         };
 
@@ -22,6 +22,10 @@ module {
 
         public func listUserDocuments(ownerId : Principal) : async Result.Result<[Document.Document], Text> {
             await documentRepo.listDocuments(ownerId);
+        };
+
+        public func getDocumentVersions(id : Document.DocumentId) : async Result.Result<[Document.Document], Text> {
+            await documentRepo.getDocumentVersions(id);
         };
     };
 };
