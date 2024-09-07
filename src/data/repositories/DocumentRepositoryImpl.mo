@@ -6,18 +6,20 @@ import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
 import Hash "mo:base/Hash";
+
 import Debug "mo:base/Debug";
 import Option "mo:base/Option";
 import Time "mo:base/Time";
 import ArrayUtils "../../../utils/ArrayUtils";
 import T "../../domain/entities/Types";
 
+
 module {
     public class DocumentRepositoryImpl() : DocumentRepository.DocumentRepository {
         public var documents = HashMap.HashMap<Document.DocumentId, Document.Document>(10, Nat.equal, Hash.hash);
         private var nextId : Nat = 0;
 
-        public func createDocument(doc : Document.Document) : async Result.Result<Nat, Text> {
+    public func createDocument(doc : Document.Document) : async Result.Result<Nat, Text> {
             let id = nextId;
             nextId += 1;
             let categories = if (doc.categories.size() == 0) {
@@ -32,6 +34,7 @@ module {
             };
             documents.put(id, newDoc);
             #ok(id);
+
         };
 
         public func getDocument(id : Document.DocumentId) : async Result.Result<Document.Document, Text> {

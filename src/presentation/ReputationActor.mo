@@ -275,6 +275,7 @@ actor class ReputationActor() = Self {
                     Debug.print("Error getting reputation history: " # Error.message(error));
                     #err("Failed to get reputation history");
                 };
+                result;
             };
             case (null) {
                 Debug.print("UseCaseFactory not initialized");

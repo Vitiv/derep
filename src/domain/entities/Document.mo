@@ -23,5 +23,6 @@ module {
         verifiedBy : [Review];
         previousVersion : ?DocumentId;
         categories : [Text];
+
     };
 };

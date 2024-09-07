@@ -182,6 +182,5 @@ module {
         public func getDetermineCategoriesUseCase() : DetermineCategoriesUseCase.DetermineCategoriesUseCase {
             useCaseFactory.getDetermineCategoriesUseCase();
         };
-
     };
 };

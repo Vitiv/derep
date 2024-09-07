@@ -6,6 +6,7 @@ import ArrayUtils "../../../utils/ArrayUtils";
 
 module {
     public class ReputationHistoryRepositoryImpl() {
+
         public var history = HashMap.HashMap<Principal, [ReputationHistoryTypes.ReputationChange]>(10, Principal.equal, Principal.hash);
 
         public func addReputationChange(change : ReputationHistoryTypes.ReputationChange) : async () {

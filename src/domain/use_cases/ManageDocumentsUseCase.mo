@@ -48,6 +48,5 @@ module {
         public func getDocumentVersions(id : Document.DocumentId) : async Result.Result<[Document.Document], Text> {
             await documentRepo.getDocumentVersions(id);
         };
-
     };
 };

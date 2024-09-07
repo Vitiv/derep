@@ -4,12 +4,14 @@ import Buffer "mo:base/Buffer";
 import NamespaceDictionary "../../data/datasources/NamespaceDictionary";
 import T "../../domain/entities/Types";
 
+
 module {
     public class DocumentClassifier() {
         private let keywordCategories = NamespaceDictionary.initialMappings;
 
         public func classifyDocument(documentUrl : Text) : async [Text] {
             Debug.print("DocumentClassifier.classifying document: " # documentUrl);
+
 
             let categoriesBuffer = Buffer.Buffer<Text>(0);
 

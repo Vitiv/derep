@@ -7,6 +7,7 @@ import ArrayUtils "../../../utils/ArrayUtils";
 
 module {
     public class NamespaceCategoryMappingRepositoryImpl() {
+
         public var mappings = HashMap.HashMap<Text, [Category.CategoryId]>(10, Text.equal, Text.hash);
         public var reverseMappings = HashMap.HashMap<Category.CategoryId, [Text]>(10, Text.equal, Text.hash);
 

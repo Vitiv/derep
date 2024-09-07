@@ -603,7 +603,6 @@ actor class TestReputationFlow() = this {
                 assert(false);
             };
         };
-
         await updateReputation(testUser, T.DEFAULT_CATEGORY_CODE , 10);
 
         // Test 17-4: Verify document with valid sourceUrl
