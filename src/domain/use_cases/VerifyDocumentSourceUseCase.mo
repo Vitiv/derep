@@ -1,7 +1,6 @@
 import Document "../entities/Document";
 import DocumentRepository "../repositories/DocumentRepository";
 import UpdateReputationUseCase "./UpdateReputationUseCase";
-import UserRepository "../repositories/UserRepository";
 import ReputationRepository "../repositories/ReputationRepository";
 import Result "mo:base/Result";
 import Time "mo:base/Time";

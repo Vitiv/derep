@@ -946,11 +946,11 @@ actor class TestReputationFlow() = this {
         ignore await ReputationActor.createUser({ id = user2; username = "User2"; registrationDate = Time.now() });
         ignore await ReputationActor.createUser({ id = user3; username = "User3"; registrationDate = Time.now() });
 
-        // Give User2 some reputation in category "1.2.3" (different from document category)
+        // Give User2 some reputation in category "2.2.3" (different from document category)
         await TestCanister.publishReputationUpdateEvent(Principal.toText(user2), "2.2.3", 50, Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai"), "initialReputation");
 
-        // User1 creates a document in category "1.2.2"
-        let createDocumentResult = await TestCanister.createTestDocument(user1, "This is a test document content.", ["1.2.2"]);
+        // User1 creates a document in category "3.2.2"
+        let createDocumentResult = await TestCanister.createTestDocument(user1, "This is a test document content.", ["3"]);
         var documentId : Document.DocumentId = 0;
         
         switch (createDocumentResult) {
@@ -982,7 +982,7 @@ actor class TestReputationFlow() = this {
         switch (verificationResultUser2) {
             case (#ok(_)) {
                 Debug.print("❌ Test 19-3: User2 (reputation in different category) should not be able to verify the document");
-                // assert(false);
+                assert(false);
             };
             case (#err(e)) {
                 Debug.print("✅ Test 19-3: User2 (reputation in different category) correctly failed to verify document: " # e);
@@ -990,7 +990,7 @@ actor class TestReputationFlow() = this {
         };
 
         // Give User2 some reputation in the correct category DEFAULT_CATEGORY_CODE
-        await TestCanister.publishReputationUpdateEvent(Principal.toText(user2), T.DEFAULT_CATEGORY_CODE, 50, Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai"), "correctCategoryReputation");
+        await TestCanister.publishReputationUpdateEvent(Principal.toText(user2), "3", 50, Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai"), "correctCategoryReputation");
 
         // User2 (now with correct reputation) verifies the document
         let verificationResultUser2Correct = await ReputationActor.verifyDocumentSource(documentId, ?user2);
@@ -1000,7 +1000,7 @@ actor class TestReputationFlow() = this {
             };
             case (#err(e)) {
                 Debug.print("❌ Test 19-4: User2 (with correct reputation) failed to verify document: " # e);
-                // assert(false);
+                assert(false);
             };
         };
 
