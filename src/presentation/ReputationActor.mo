@@ -2,6 +2,7 @@ import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
+
 import InitialCategories "../data/datasources/InitialCategories";
 import NamespaceDictionary "../data/datasources/NamespaceDictionary";
 import CategoryRepositoryImpl "../data/repositories/CategoryRepositoryImpl";
@@ -104,7 +105,7 @@ actor class ReputationActor() = Self {
         };
     };
 
-    public shared func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<(), Text> {
+    public shared func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<Int, Text> {
         switch (apiHandler) {
             case (?handler) {
                 await handler.updateReputation(user, category, value);
@@ -305,9 +306,46 @@ actor class ReputationActor() = Self {
     // ----------------------------------Document Part ---------------------
 
     public shared (msg) func uploadDocument(file : IncomingFile.IncomingFile) : async Result.Result<Document.DocumentId, Text> {
+        Debug.print("ReputationActor: Uploading document for user " # Principal.toText(msg.caller));
         switch (apiHandler) {
             case (?handler) {
-                await handler.processIncomingFile(file, msg.caller);
+                let incomingFile : IncomingFile.IncomingFile = {
+                    name = file.name;
+                    content = file.content;
+                    contentType = file.contentType;
+                    user = Principal.toText(msg.caller);
+                    sourceUrl = file.sourceUrl;
+                    categories = file.categories;
+                };
+                await handler.processIncomingFile(incomingFile, msg.caller);
+            };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public shared (msg) func verifyDocumentSource(documentId : Document.DocumentId, reviewer : ?Principal) : async Result.Result<(), Text> {
+        switch (apiHandler) {
+            case (?handler) {
+                Debug.print("ReputationActor: Verifying document source for ID: " # debug_show (documentId));
+                let actualReviewer = switch (reviewer) {
+                    case (?r) { r };
+                    case (null) { msg.caller };
+                };
+                let result = await handler.verifyDocumentSource(documentId, actualReviewer);
+                Debug.print("ReputationActor: Verification result: " # debug_show (result));
+                result;
+            };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public shared (msg) func updateDocumentCategories(documentId : Document.DocumentId, newCategories : [Text]) : async Result.Result<(), Text> {
+        switch (apiHandler) {
+            case (?handler) {
+                Debug.print("ReputationActor: Updating document categories for ID: " # debug_show (documentId));
+                let result = await handler.updateDocumentCategories(documentId, newCategories, msg.caller);
+                Debug.print("ReputationActor: Update categories result: " # debug_show (result));
+                result;
             };
             case (null) { #err("API Handler not initialized") };
         };
@@ -320,7 +358,7 @@ actor class ReputationActor() = Self {
         };
     };
 
-    public shared func updateDocument(doc : Document.Document) : async Result.Result<(), Text> {
+    public shared func updateDocument(doc : Document.Document) : async Result.Result<Int, Text> {
         switch (apiHandler) {
             case (?handler) { await handler.updateDocument(doc) };
             case (null) { #err("API Handler not initialized") };
@@ -338,6 +376,17 @@ actor class ReputationActor() = Self {
         switch (apiHandler) {
             case (?handler) { await handler.deleteDocument(id) };
             case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public func getDocumentVersions(id : Document.DocumentId) : async Result.Result<[Document.Document], Text> {
+        switch (apiHandler) {
+            case (?handler) {
+                await handler.getDocumentVersions(id);
+            };
+            case (null) {
+                #err("API Handler not initialized");
+            };
         };
     };
 

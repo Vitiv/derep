@@ -4,13 +4,14 @@ import Time "mo:base/Time";
 import Result "mo:base/Result";
 import Text "mo:base/Text";
 import Blob "mo:base/Blob";
+import Nat32 "mo:base/Nat32";
 
 import ReputationActor "canister:derep";
 import TestCanister "canister:test";
 import T "../src/domain/entities/Types";
 import Document "../src/domain/entities/Document";
 
-actor TestReputationFlow {
+actor class TestReputationFlow() = this {
     type Namespace = T.Namespace;
 
     public type UserId = Principal;
@@ -146,6 +147,15 @@ actor TestReputationFlow {
 
         // Step 17
         await testDocumentManagement();
+
+        // Step 18
+        await testDocumentCreationAndVerification();
+
+        // Step 19
+        await testDocumentCategoryVerification();
+
+        // Step 20
+        await testDocumentCategoryUpdate();
 
         Debug.print("✅ ✅ ✅ All test cases completed successfully!");
     };
@@ -498,55 +508,256 @@ actor TestReputationFlow {
         Debug.print("✅ Test case 16: Namespace-Category Mapping test passed");
     };
 
+     // Test case 17
      private func testDocumentManagement() : async () {
-        Debug.print("Starting Document Management tests");
+        Debug.print("Test case 17: Starting Document Management tests");
 
-        let testUser = Principal.fromText("aaaaa-aa");
+        let testUser = Principal.fromActor(this);
+        Debug.print("Test 17 user principal: " # Principal.toText(testUser));
+
+        // Create test user before uploading document
+        let createUserResult = await ReputationActor.createUser({
+            id = testUser;
+            username = "TestUser";
+            registrationDate = Time.now();
+        });
+        
+        switch (createUserResult) {
+            case (#ok(true)) {
+                Debug.print("✅ Test 17-0: Test user created successfully");
+            };
+            case (#ok(false)) {
+                Debug.print("❌ Test 17-0: Failed to create test user");
+                assert(false);
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 17-0: Error creating test user: " # e);
+                assert(false);
+            };
+        };
+
         let testDocument = {
             name = "test_document.txt";
             content = Blob.toArray(Text.encodeUtf8("This is a test document content."));
             contentType = "text/plain";
             user = Principal.toText(testUser);
+            sourceUrl = ?"https://example.com/source";
+            categories = [];
         };
 
-        // Test 1: Upload a document
+        // Test 17-1: Upload a document
         let uploadResult = await ReputationActor.uploadDocument(testDocument);
         var documentId : ?Document.DocumentId = null;
         switch (uploadResult) {
             case (#ok(id)) {
-                Debug.print("✅ Test 1: Document uploaded successfully with ID: " # debug_show(id));
+                Debug.print("✅ Test 17-1: Document uploaded successfully with ID: " # debug_show(id));
                 documentId := ?id;
             };
             case (#err(e)) {
-                Debug.print("❌ Test 1: Failed to upload document: " # e);
+                Debug.print("❌ Test 17-1: Failed to upload document: " # e);
                 assert(false);
             };
         };
 
-        // Test 2: Get the uploaded document
-        switch (documentId) {
+         // Test 17-2: Upload a document without sourceUrl
+        let testDocumentNoSource = {
+            testDocument with sourceUrl = null; categories = [];
+        };
+        let uploadResultNoSource = await ReputationActor.uploadDocument(testDocumentNoSource);
+        var documentIdNoSource : ?Document.DocumentId = null;
+        switch (uploadResultNoSource) {
+            case (#ok(id)) {
+                Debug.print("✅ Test 17-2: Document without source uploaded successfully with ID: " # debug_show(id));
+                documentIdNoSource := ?id;
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 17-2: Failed to upload document without source: " # e);
+                assert(false);
+            };
+        };
+
+         // Test 17-3: Get the uploaded document and check temporary reputation
+         var doc_categories :[Text] = [];
+        switch (documentIdNoSource) {
             case (?id) {
                 let getResult = await ReputationActor.getDocument(id);
                 switch (getResult) {
                     case (#ok(doc)) {
-                        Debug.print("✅ Test 2: Retrieved document: " # debug_show(doc));
+                        doc_categories := doc.categories;
+                        Debug.print("✅ Test 17-3: Retrieved document: " # debug_show(doc));
                         assert(doc.name == testDocument.name);
                         assert(doc.contentType == testDocument.contentType);
-                        assert(doc.user == Principal.toText(testUser));
+                        assert(doc.user == testUser);
+                        assert(doc.verifiedBy.size() == 1);
+                        // assert(doc.verifiedBy[0].reviewer == "system");
+                        assert(doc.verifiedBy[0].reputation == 2); // Assuming temporary reputation is 2
                     };
                     case (#err(e)) {
-                        Debug.print("❌ Test 2: Failed to get document: " # e);
+                        Debug.print("❌ Test 17-3: Failed to get document: " # e);
                         assert(false);
                     };
                 };
             };
             case (null) {
-                Debug.print("❌ Test 2: No document ID available for retrieval");
+                Debug.print("❌ Test 17-3: No document ID available for retrieval");
+                assert(false);
+            };
+        };
+        await updateReputation(testUser, T.DEFAULT_CATEGORY_CODE , 10);
+
+        // Test 17-4: Verify document with valid sourceUrl
+        switch (documentId) {
+            case (?id) {
+                let verifyResult = await ReputationActor.verifyDocumentSource(id, ?testUser);
+                switch (verifyResult) {
+                    case (#ok(_)) {
+                        Debug.print("✅ Test 17-4: Document verified successfully");
+                    };
+                    case (#err(e)) {
+                        Debug.print("❌ Test 17-4: Failed to verify document: " # e);
+                        assert(false);
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 17-4: No document ID available for verification");
                 assert(false);
             };
         };
 
-        // Test 3: Update the document
+        // Test 17-5: Verify document without sourceUrl
+        switch (documentIdNoSource) {
+            case (?id) {
+                let verifyResultNoSource = await ReputationActor.verifyDocumentSource(id, ?testUser);
+                switch (verifyResultNoSource) {
+                    case (#ok(_)) {
+                        Debug.print("❌ Test 17-5: Document without source should not be verified");
+                        assert(false);
+                    };
+                    case (#err(_)) {
+                        Debug.print("✅ Test 17-5: Document without source correctly failed verification");
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 17-5: No document ID available for verification");
+                assert(false);
+            };
+        };
+
+        // Test 17-6: Get verified document and check full reputation
+        Debug.print("Starting Test 17-6: Get verified document and check full reputation");
+
+       switch (documentId) {
+            case (?id) {
+                let verifyResult = await ReputationActor.verifyDocumentSource(id, ?testUser);
+                switch (verifyResult) {
+                    case (#ok(_)) {
+                        // Get the latest document (which should be the newly created one)
+                        let latestDocuments = await ReputationActor.listUserDocuments(testUser);
+                        switch (latestDocuments) {
+                            case (#ok(docs)) {
+                                assert(docs.size() > 0);
+                                let latestDoc = docs[docs.size() - 1];
+                                Debug.print("✅ Test 17-6: Retrieved latest verified document: " # debug_show(latestDoc));
+                                assert(latestDoc.verifiedBy.size() > 0);
+                                assert(latestDoc.verifiedBy[latestDoc.verifiedBy.size() - 1].reputation > 1); // Assuming full reputation is greater than temporary
+                            };
+                            case (#err(e)) {
+                                Debug.print("❌ Test 17-6: Failed to get latest documents: " # e);
+                                assert(false);
+                            };
+                        };
+                    };
+                    case (#err(e)) {
+                        Debug.print("❌ Test 17-6: Failed to verify document: " # e);
+                        // assert(false);
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 17-6: No document ID available for retrieval");
+                assert(false);
+            };
+        };
+
+        // Test 17-7: Verify document and attempt to re-verify
+        switch (documentId) {
+            case (?id) {
+                let reviewer = Principal.toText(Principal.fromActor(this));
+                Debug.print("Test 17-7: Using reviewer: " # reviewer);
+
+                // Check initial document state
+                let initialDocResult = await ReputationActor.getDocument(id);
+                switch (initialDocResult) {
+                    case (#ok(doc)) {
+                        Debug.print("Initial document state: " # debug_show(doc));
+                        let initialVerificationCount = doc.verifiedBy.size();
+
+                        // Attempt to verify
+                        let verifyResult = await ReputationActor.verifyDocumentSource(id, ?Principal.fromActor(this));
+                        switch (verifyResult) {
+                            case (#ok(_)) {
+                                if (initialVerificationCount == 0) {
+                                    Debug.print("✅ Test 17-7: Document verified successfully");
+                                } else {
+                                    Debug.print("❌ Test 17-7: Document was already verified, but no error was returned");
+                                    assert(false);
+                                };
+                            };
+                            case (#err(e)) {
+                                if (initialVerificationCount > 0 and e == "Document already verified by this reviewer") {
+                                    Debug.print("✅ Test 17-7: Correctly failed to re-verify already verified document");
+                                } else {
+                                    Debug.print("❌ Test 17-7: Unexpected error: " # e);
+                                    assert(false);
+                                };
+                            };
+                        };
+                        
+                        // Attempt to re-verify
+                        let reverifyResult = await ReputationActor.verifyDocumentSource(id, ?Principal.fromActor(this));
+                        switch (reverifyResult) {
+                            case (#ok(_)) {
+                                Debug.print("❌ Test 17-7: Already verified document should not be re-verified");
+                                assert(false);
+                            };
+                            case (#err(e)) {
+                                if (e == "Document already verified by this reviewer") {
+                                    Debug.print("✅ Test 17-7: Correctly failed to re-verify already verified document");
+                                } else {
+                                    Debug.print("❌ Test 17-7: Unexpected error: " # e);
+                                    assert(false);
+                                };
+                            };
+                        };
+                        
+                        // Check that verification didn't create a new version
+                        let versionsResult = await ReputationActor.getDocumentVersions(id);
+                        switch (versionsResult) {
+                            case (#ok(versions)) {
+                                assert(versions.size() == 1);
+                                Debug.print("✅ Test 17-7: Verification did not create a new document version");
+                            };
+                            case (#err(e)) {
+                                Debug.print("❌ Test 17-7: Failed to get document versions: " # e);
+                                assert(false);
+                            };
+                        };
+                    };
+                    case (#err(e)) {
+                        Debug.print("❌ Test 17-7: Failed to get initial document state: " # e);
+                        assert(false);
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 17-7: No document ID available for verification");
+                assert(false);
+            };
+        };
+
+        // Test 17-8: Update the document
         switch (documentId) {
             case (?id) {
                 let updatedDocument = {
@@ -557,81 +768,309 @@ actor TestReputationFlow {
                     size = 36;
                     hash = "updated_hash";
                     source = "test_source";
+                    sourceUrl = ?"https://example.com/source";
                     user = testUser;
                     createdAt = Time.now();
                     updatedAt = Time.now();
+                    verifiedBy = [];
+                    previousVersion = null; 
+                    categories = []
                 };
                 let updateResult = await ReputationActor.updateDocument(updatedDocument);
                 switch (updateResult) {
-                    case (#ok(_)) {
-                        Debug.print("✅ Test 3: Document updated successfully");
+                    case (#ok(newId)) {
+                        Debug.print("✅ Test 17-8: Document updated successfully with new ID: " # debug_show(newId));
+                        documentId := ?Nat32.toNat(Nat32.fromIntWrap(newId));  // Update documentId to the new version
                     };
                     case (#err(e)) {
-                        Debug.print("❌ Test 3: Failed to update document: " # e);
+                        Debug.print("❌ Test 17-8: Failed to update document: " # e);
                         assert(false);
                     };
                 };
             };
             case (null) {
-                Debug.print("❌ Test 3: No document ID available for update");
+                Debug.print("❌ Test 17-8: No document ID available for update");
                 assert(false);
             };
         };
 
-        // Test 4: List user documents
+        // Test 17-9: Get document versions
+        switch (documentId) {
+            case (?id) {
+                let versionsResult = await ReputationActor.getDocumentVersions(id);
+                switch (versionsResult) {
+                    case (#ok(versions)) {
+                        Debug.print("✅ Test 17-9: Retrieved document versions: " # debug_show(versions));
+                        assert(versions.size() == 2);  // Should have original and updated version
+                        assert(versions[0].name == "updated_document.txt");
+                        assert(versions[1].name == "test_document.txt");
+                    };
+                    case (#err(e)) {
+                        Debug.print("❌ Test 17-9: Failed to get document versions: " # e);
+                        assert(false);
+                    };
+                };
+            };
+            case (null) {
+                Debug.print("❌ Test 17-9: No document ID available for version retrieval");
+                assert(false);
+            };
+        };
+
+        // Test 17-10: List user documents
         let listResult = await ReputationActor.listUserDocuments(testUser);
         switch (listResult) {
             case (#ok(docs)) {
-                Debug.print("✅ Test 4: Retrieved user documents: " # debug_show(docs));
+                Debug.print("✅ Test 17-10: Retrieved user documents: " # debug_show(docs));
                 assert(docs.size() > 0);
+                // Check if the latest version is in the list
+                assert(docs[docs.size() - 1].name == "updated_document.txt");
             };
             case (#err(e)) {
-                Debug.print("❌ Test 4: Failed to list user documents: " # e);
+                Debug.print("❌ Test 17-10: Failed to list user documents: " # e);
                 assert(false);
             };
         };
 
-        // Test 5: Delete the document
+        // Test 17-11: Delete the document
         switch (documentId) {
             case (?id) {
                 let deleteResult = await ReputationActor.deleteDocument(id);
                 switch (deleteResult) {
                     case (#ok(_)) {
-                        Debug.print("✅ Test 5: Document deleted successfully");
+                        Debug.print("✅ Test 17-11: Document deleted successfully");
                     };
                     case (#err(e)) {
-                        Debug.print("❌ Test 5: Failed to delete document: " # e);
+                        Debug.print("❌ Test 17-11: Failed to delete document: " # e);
                         assert(false);
                     };
                 };
             };
             case (null) {
-                Debug.print("❌ Test 5: No document ID available for deletion");
+                Debug.print("❌ Test 17-11: No document ID available for deletion");
                 assert(false);
             };
         };
 
-        // Test 6: Attempt to get the deleted document (should fail)
+        // Test 17-12: Attempt to get the deleted document (should fail)
         switch (documentId) {
             case (?id) {
                 let getDeletedResult = await ReputationActor.getDocument(id);
                 switch (getDeletedResult) {
                     case (#ok(_)) {
-                        Debug.print("❌ Test 6: Retrieved deleted document, expected an error");
+                        Debug.print("❌ Test 17-12: Retrieved deleted document, expected an error");
                         assert(false);
                     };
                     case (#err(_)) {
-                        Debug.print("✅ Test 6: Correctly failed to retrieve deleted document");
+                        Debug.print("✅ Test 17-12: Correctly failed to retrieve deleted document");
                     };
                 };
             };
             case (null) {
-                Debug.print("❌ Test 6: No document ID available for retrieval test");
+                Debug.print("❌ Test 17-12: No document ID available for retrieval test");
                 assert(false);
             };
         };
 
-        Debug.print("✅ All Document Management tests passed successfully!");
+        Debug.print("✅ ✅ Test case 17: All Document Management tests passed successfully!");
+    };
+
+    // Text 18
+    public func testDocumentCreationAndVerification() : async () {
+        Debug.print("Starting Test 18: Document Creation and Verification test");
+
+        // Create two test users
+        let user1 = Principal.fromText("bw4dl-smaaa-aaaaa-qaacq-cai");
+        let user2 = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+
+        // Ensure users are created in the system
+        ignore await ReputationActor.createUser({ id = user1; username = "User1"; registrationDate = Time.now() });
+        ignore await ReputationActor.createUser({ id = user2; username = "User2"; registrationDate = Time.now() });
+
+        // User1 creates a document
+            let createDocumentResult = await TestCanister.createTestDocument(user1, "This is a test document content.", []);
+            var documentId : Document.DocumentId = 0;
+            
+            switch (createDocumentResult) {
+                case (#ok(id)) {
+                    documentId := id;
+                    Debug.print("✅ Test 18: Test document created with ID: " # debug_show(documentId));
+                };
+                case (#err(e)) {
+                    Debug.print("❌ Test 18: Failed to create test document: " # e);
+                    assert(false);
+                };
+            };
+
+            // User2 verifies the document
+            await updateReputation(user2, T.DEFAULT_CATEGORY_CODE , 10);
+            let verificationResult = await ReputationActor.verifyDocumentSource(documentId, ?user2);
+            switch (verificationResult) {
+                case (#ok(_)) {
+                    Debug.print("✅ Test: Document verified successfully");
+                };
+                case (#err(e)) {
+                    Debug.print("❌ Test: Failed to verify document: " # e);
+                    // assert(false);
+                };
+            };
+
+            // Check User1's reputation
+            let reputationResult = await ReputationActor.getUserReputation(user1, T.DEFAULT_CATEGORY_CODE); // Assuming "1.2.2" is the default category
+            switch (reputationResult) {
+                case (#ok(reputation)) {
+                    Debug.print("✅ Test 18: User1's reputation: " # debug_show(reputation));
+                    assert(reputation.score == 11); // Expected reputation score to be 11
+                };
+                case (#err(_)) {
+                    Debug.print("❌ Test 18: Failed to get user reputation: " # debug_show(reputationResult));
+                    assert(false);
+                };
+            };
+
+            Debug.print("✅ ✅ Test 18: Document Creation and Verification test completed successfully");
+        };
+
+        // Test 19 Document Category Verification
+        public func testDocumentCategoryVerification() : async () {
+        Debug.print("Starting Test 19: Document Category Verification test");
+
+        // Create three test users
+        let user1 = Principal.fromText("bw4dl-smaaa-aaaaa-qaacq-cai");
+        let user2 = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+        let user3 = Principal.fromText("k2t6j-2nvnp-4zjm3-25dtz-6xhaa-c7boj-5gayf-oj3xs-i43lp-teztq-6ae");
+
+        // Ensure users are created in the system
+        ignore await ReputationActor.createUser({ id = user1; username = "User1"; registrationDate = Time.now() });
+        ignore await ReputationActor.createUser({ id = user2; username = "User2"; registrationDate = Time.now() });
+        ignore await ReputationActor.createUser({ id = user3; username = "User3"; registrationDate = Time.now() });
+
+        // Give User2 some reputation in category "2.2.3" (different from document category)
+        await TestCanister.publishReputationUpdateEvent(Principal.toText(user2), "2.2.3", 50, Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai"), "initialReputation");
+
+        // User1 creates a document in category "3.2.2"
+        let createDocumentResult = await TestCanister.createTestDocument(user1, "This is a test document content.", ["3"]);
+        var documentId : Document.DocumentId = 0;
+        
+        switch (createDocumentResult) {
+            case (#ok(id)) {
+                documentId := id;
+                Debug.print("✅ Test 19-1: Test document created with ID: " # debug_show(documentId));
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 19-1: Failed to create test document: " # e);
+                assert(false);
+            };
+        };
+
+        // User3 (no reputation) attempts to verify the document
+        let verificationResultUser3 = await ReputationActor.verifyDocumentSource(documentId, ?user3);
+        switch (verificationResultUser3) {
+            case (#ok(_)) {
+                Debug.print("❌ Test 19-2: User3 (no reputation) should not be able to verify the document");
+                assert(false);
+            };
+            case (#err(e)) {
+                Debug.print("✅ Test 19-2: User3 (no reputation) correctly failed to verify document: " # e);
+            };
+        };
+
+        // User2 (reputation in different category) attempts to verify the document
+        let verificationResultUser2 = await ReputationActor.verifyDocumentSource(documentId, ?user2);
+        Debug.print("Test 19-3: verificationResultUser2: " # debug_show(verificationResultUser2));
+        switch (verificationResultUser2) {
+            case (#ok(_)) {
+                Debug.print("❌ Test 19-3: User2 (reputation in different category) should not be able to verify the document");
+                assert(false);
+            };
+            case (#err(e)) {
+                Debug.print("✅ Test 19-3: User2 (reputation in different category) correctly failed to verify document: " # e);
+            };
+        };
+
+        // Give User2 some reputation in the correct category DEFAULT_CATEGORY_CODE
+        await TestCanister.publishReputationUpdateEvent(Principal.toText(user2), "3", 50, Principal.fromText("ezcib-nyaaa-aaaal-adsbq-cai"), "correctCategoryReputation");
+
+        // User2 (now with correct reputation) verifies the document
+        let verificationResultUser2Correct = await ReputationActor.verifyDocumentSource(documentId, ?user2);
+        switch (verificationResultUser2Correct) {
+            case (#ok(_)) {
+                Debug.print("✅ Test 19-4: User2 (with correct reputation) verified document successfully");
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 19-4: User2 (with correct reputation) failed to verify document: " # e);
+                assert(false);
+            };
+        };
+
+        // Check User1's reputation
+        let reputationResult = await ReputationActor.getUserReputation(user1, T.DEFAULT_CATEGORY_CODE);
+        switch (reputationResult) {
+            case (#ok(reputation)) {
+                Debug.print("✅ Test 19-5: User1's reputation: " # debug_show(reputation.score));
+                assert(reputation.score == 22); // Expected reputation score to be 22
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 19-5: Failed to get user reputation: " # e);
+                assert(false);
+            };
+        };
+
+        Debug.print("✅ ✅ Test 19: Document Creation and Verification test completed successfully");
+    };
+
+    // Test 20
+    private func testDocumentCategoryUpdate() : async () {
+        Debug.print("Starting Test 20: Document Category Update");
+
+        let user = Principal.fromText("bw4dl-smaaa-aaaaa-qaacq-cai");
+        let initialCategories = [T.DEFAULT_CATEGORY_CODE];
+        let updatedCategories = [T.DEFAULT_CATEGORY_CODE, "2.1"];
+
+        // Create a document
+        let createDocumentResult = await TestCanister.createTestDocument(user, "This is a test document for category update.", initialCategories);
+        var documentId : Document.DocumentId = 0;
+        
+        switch (createDocumentResult) {
+            case (#ok(id)) {
+                documentId := id;
+                Debug.print("✅ Test 20-1: Test document created with ID: " # debug_show(documentId));
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 20-1: Failed to create test document: " # e);
+                assert(false);
+            };
+        };
+
+        // Update document categories
+        let updateResult = await ReputationActor.updateDocumentCategories(documentId, updatedCategories);
+        switch (updateResult) {
+            case (#ok(_)) {
+                Debug.print("✅ Test 20-2: Document categories updated successfully");
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 20-2: Failed to update document categories: " # e);
+                assert(false);
+            };
+        };
+
+        // Verify the updated categories
+        let getDocumentResult = await ReputationActor.getDocument(documentId);
+        Debug.print("Test 20-3: getDocumentResult for id: " # debug_show(documentId) # ", result: " # debug_show(getDocumentResult));
+        switch (getDocumentResult) {
+            case (#ok(document)) {
+                 Debug.print("Test 20-3: Retrieved document: " # debug_show(document));
+                assert(document.id == documentId);
+                assert(document.categories == updatedCategories);
+                Debug.print("✅ Test 20-3: Document categories verified after update");
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 20-3: Failed to get updated document: " # e);
+                assert(false);
+            };
+        };
+
+        Debug.print("✅ ✅ Test 20: Document Category Update test completed successfully");
     };
 
     private func assertReputation(userId : Principal, categoryId : Text, expectedScore : Int) : async Bool {

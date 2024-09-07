@@ -22,6 +22,7 @@ import DetermineCategoriesUseCase "./DetermineCategoriesUseCase";
 import DocumentRepository "../repositories/DocumentRepository";
 import ManageDocumentsUseCase "./ManageDocumentsUseCase";
 import ProcessIncomingFileUseCase "./ProcessIncomingFileUseCase";
+import VerifyDocumentSourceUseCase "./VerifyDocumentSourceUseCase";
 
 module {
     public class UseCaseFactory(
@@ -54,7 +55,7 @@ module {
         };
 
         public func getProcessIncomingFileUseCase() : ProcessIncomingFileUseCase.ProcessIncomingFileUseCase {
-            ProcessIncomingFileUseCase.ProcessIncomingFileUseCase(documentRepo);
+            ProcessIncomingFileUseCase.ProcessIncomingFileUseCase(documentRepo, getUpdateReputationUseCase(), userRepo, categoryRepo);
         };
 
         public func getUpdateReputationUseCase() : UpdateReputationUseCase.UpdateReputationUseCase {
@@ -136,6 +137,14 @@ module {
                 namespaceCategoryMapper,
                 documentClassifier,
                 namespaceMappingRepo,
+            );
+        };
+
+        public func getVerifyDocumentSourceUseCase() : VerifyDocumentSourceUseCase.VerifyDocumentSourceUseCase {
+            VerifyDocumentSourceUseCase.VerifyDocumentSourceUseCase(
+                documentRepo,
+                getUpdateReputationUseCase(),
+                reputationRepo,
             );
         };
     };
