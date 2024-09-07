@@ -55,11 +55,7 @@ module {
         };
 
         public func getProcessIncomingFileUseCase() : ProcessIncomingFileUseCase.ProcessIncomingFileUseCase {
-            ProcessIncomingFileUseCase.ProcessIncomingFileUseCase(documentRepo, getUpdateReputationUseCase(), userRepo);
-        };
-
-        public func getVerifyDocumentSourceUseCase() : VerifyDocumentSourceUseCase.VerifyDocumentSourceUseCase {
-            VerifyDocumentSourceUseCase.VerifyDocumentSourceUseCase(documentRepo, getUpdateReputationUseCase());
+            ProcessIncomingFileUseCase.ProcessIncomingFileUseCase(documentRepo, getUpdateReputationUseCase(), userRepo, categoryRepo);
         };
 
         public func getUpdateReputationUseCase() : UpdateReputationUseCase.UpdateReputationUseCase {
@@ -141,6 +137,14 @@ module {
                 namespaceCategoryMapper,
                 documentClassifier,
                 namespaceMappingRepo,
+            );
+        };
+
+        public func getVerifyDocumentSourceUseCase() : VerifyDocumentSourceUseCase.VerifyDocumentSourceUseCase {
+            VerifyDocumentSourceUseCase.VerifyDocumentSourceUseCase(
+                documentRepo,
+                getUpdateReputationUseCase(),
+                reputationRepo,
             );
         };
     };

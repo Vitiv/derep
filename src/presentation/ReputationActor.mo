@@ -313,7 +313,8 @@ actor class ReputationActor() = Self {
                     content = file.content;
                     contentType = file.contentType;
                     user = Principal.toText(msg.caller);
-                    sourceUrl = file.sourceUrl; // Now we include sourceUrl
+                    sourceUrl = file.sourceUrl;
+                    categories = file.categories;
                 };
                 await handler.processIncomingFile(incomingFile, msg.caller);
             };
@@ -321,12 +322,28 @@ actor class ReputationActor() = Self {
         };
     };
 
-    public shared (msg) func verifyDocumentSource(documentId : Document.DocumentId) : async Result.Result<(), Text> {
+    public shared (msg) func verifyDocumentSource(documentId : Document.DocumentId, reviewer : ?Principal) : async Result.Result<(), Text> {
         switch (apiHandler) {
             case (?handler) {
                 Debug.print("ReputationActor: Verifying document source for ID: " # debug_show (documentId));
-                let result = await handler.verifyDocumentSource(documentId, Principal.toText(msg.caller));
+                let actualReviewer = switch (reviewer) {
+                    case (?r) { r };
+                    case (null) { msg.caller };
+                };
+                let result = await handler.verifyDocumentSource(documentId, actualReviewer);
                 Debug.print("ReputationActor: Verification result: " # debug_show (result));
+                result;
+            };
+            case (null) { #err("API Handler not initialized") };
+        };
+    };
+
+    public shared (msg) func updateDocumentCategories(documentId : Document.DocumentId, newCategories : [Text]) : async Result.Result<(), Text> {
+        switch (apiHandler) {
+            case (?handler) {
+                Debug.print("ReputationActor: Updating document categories for ID: " # debug_show (documentId));
+                let result = await handler.updateDocumentCategories(documentId, newCategories, msg.caller);
+                Debug.print("ReputationActor: Update categories result: " # debug_show (result));
                 result;
             };
             case (null) { #err("API Handler not initialized") };

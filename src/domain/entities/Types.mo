@@ -82,5 +82,6 @@ module {
     public let UPDATE_REPUTATION_NAMESPACE : Namespace = "update.reputation.ava";
     public let INCREASE_REPUTATION_NAMESPACE : Namespace = "increase.reputation.ava";
     public let DEFAULT_CATEGORY = "common.ava";
-
+    public let DEFAULT_CATEGORY_CODE = "1.2.2";
+    public let REPUTATION_UPDATE_THRESHOLD = 10;
 };

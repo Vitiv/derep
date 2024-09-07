@@ -10,12 +10,14 @@ import Text "mo:base/Text";
 import Debug "mo:base/Debug";
 import SHA256 "mo:sha2/Sha256";
 import UserRepository "../repositories/UserRepository";
+import CategoryRepository "../repositories/CategoryRepository";
 
 module {
     public class ProcessIncomingFileUseCase(
         documentRepo : DocumentRepository.DocumentRepository,
         updateReputationUseCase : UpdateReputationUseCase.UpdateReputationUseCase,
         userRepo : UserRepository.UserRepository,
+        categoryRepo : CategoryRepository.CategoryRepository,
     ) {
         public func execute(file : IncomingFile.IncomingFile, caller : Principal) : async Result.Result<Document.DocumentId, Text> {
             // Check if user exists
@@ -39,6 +41,14 @@ module {
                 case (?y) { y };
             };
 
+            // Validate categories
+            for (categoryId in file.categories.vals()) {
+                let categoryExists = await categoryRepo.getCategory(categoryId);
+                if (categoryExists == null) {
+                    return #err("Invalid category: " # categoryId);
+                };
+            };
+
             let document : Document.Document = {
                 id = 0; // This will be set by the repository
                 name = file.name;
@@ -52,7 +62,8 @@ module {
                 createdAt = now;
                 updatedAt = now;
                 verifiedBy = []; // Initially empty
-                previousVersion = null; // TODO
+                previousVersion = null;
+                categories = file.categories;
             };
 
             Debug.print("ProcessIncomingFileUseCase: Creating document");
@@ -65,16 +76,12 @@ module {
                     switch (tempReputationResult) {
                         case (#ok(tempRepValue)) {
                             Debug.print("ProcessIncomingFileUseCase: Temporary reputation assigned: " # debug_show (tempRepValue));
-                            let updatedDocument = {
-                                document with
-                                id = docId;
-                                verifiedBy = [{
-                                    reviewer = "aaaaa-aa"; // TODO change to canister id
-                                    date = now;
-                                    reputation = tempRepValue;
-                                }];
+                            let review : Document.Review = {
+                                reviewer = "aaaaa-aa"; // TODO change to canister id
+                                date = now;
+                                reputation = tempRepValue;
                             };
-                            ignore await documentRepo.updateDocument(updatedDocument);
+                            ignore await documentRepo.verifyDocument(docId, review);
                             #ok(docId);
                         };
                         case (#err(e)) {

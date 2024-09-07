@@ -7,5 +7,6 @@ module {
         contentType : Text;
         user : Text;
         sourceUrl : ?Text;
+        categories : [Text];
     };
 };

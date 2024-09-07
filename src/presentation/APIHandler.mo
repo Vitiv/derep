@@ -24,9 +24,14 @@ module {
             await processIncomingFileUseCase.execute(file, caller);
         };
 
-        public func verifyDocumentSource(documentId : Document.DocumentId, reviewer : Text) : async Result.Result<(), Text> {
+        public func verifyDocumentSource(documentId : Document.DocumentId, reviewer : Principal) : async Result.Result<(), Text> {
             let verifyDocumentSourceUseCase = useCaseFactory.getVerifyDocumentSourceUseCase();
             await verifyDocumentSourceUseCase.execute(documentId, reviewer);
+        };
+
+        public func updateDocumentCategories(documentId : Document.DocumentId, newCategories : [Text], caller : Principal) : async Result.Result<(), Text> {
+            let manageDocumentsUseCase = useCaseFactory.getManageDocumentsUseCase();
+            await manageDocumentsUseCase.updateDocumentCategories(documentId, newCategories, caller);
         };
 
         public func getDocument(id : Document.DocumentId) : async Result.Result<Document.Document, Text> {

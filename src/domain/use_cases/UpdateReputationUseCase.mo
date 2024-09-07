@@ -62,7 +62,7 @@ module {
         private func determineCategoryFromContentType(contentType : Text) : async Category.CategoryId {
             // Implement logic to determine category based on content type
             // For now, we'll just return a default category
-            "1.2.2" // Internet Computer category
+            "1.2.2" // Internet Computer category by default
         };
 
     };

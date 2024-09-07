@@ -13,7 +13,7 @@ module {
         public func createCategory(category : Category.Category) : async Bool {
             switch (categories.get(category.id)) {
                 case (?_) {
-                    Debug.print("CategoryRepositoryImpl.createCategory: Category already exists: " # category.id);
+                    // Debug.print("CategoryRepositoryImpl.createCategory: Category already exists: " # category.id);
                     false;
                 };
                 case null {
@@ -28,7 +28,7 @@ module {
             let result = categories.get(id);
             switch (result) {
                 case (?category) {
-                    Debug.print("CategoryRepositoryImpl.getCategory: Found category: " # debug_show (category));
+                    // Debug.print("CategoryRepositoryImpl.getCategory: Found category: " # debug_show (category));
                 };
                 case (null) {
                     Debug.print("CategoryRepositoryImpl.getCategory: Category not found for id: " # id);

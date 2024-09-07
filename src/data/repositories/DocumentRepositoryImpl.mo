@@ -8,7 +8,9 @@ import Principal "mo:base/Principal";
 import Hash "mo:base/Hash";
 import Debug "mo:base/Debug";
 import Option "mo:base/Option";
+import Time "mo:base/Time";
 import ArrayUtils "../../../utils/ArrayUtils";
+import T "../../domain/entities/Types";
 
 module {
     public class DocumentRepositoryImpl() : DocumentRepository.DocumentRepository {
@@ -18,7 +20,16 @@ module {
         public func createDocument(doc : Document.Document) : async Result.Result<Nat, Text> {
             let id = nextId;
             nextId += 1;
-            let newDoc = { doc with id = id; previousVersion = null };
+            let categories = if (doc.categories.size() == 0) {
+                [T.DEFAULT_CATEGORY_CODE];
+            } else {
+                doc.categories;
+            };
+            let newDoc = {
+                doc with id = id;
+                previousVersion = null;
+                categories = categories;
+            };
             documents.put(id, newDoc);
             #ok(id);
         };
@@ -51,6 +62,23 @@ module {
                 };
                 case null {
                     #err("Original document not found");
+                };
+            };
+        };
+
+        public func updateDocumentCategories(id : Document.DocumentId, newCategories : [Text]) : async Result.Result<(), Text> {
+            switch (documents.get(id)) {
+                case (?doc) {
+                    let updatedDoc = {
+                        doc with
+                        categories = newCategories;
+                        updatedAt = Time.now();
+                    };
+                    documents.put(id, updatedDoc);
+                    #ok(());
+                };
+                case (null) {
+                    #err("Document not found");
                 };
             };
         };

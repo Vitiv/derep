@@ -1,28 +1,34 @@
 import Document "../entities/Document";
 import DocumentRepository "../repositories/DocumentRepository";
 import UpdateReputationUseCase "./UpdateReputationUseCase";
+import UserRepository "../repositories/UserRepository";
+import ReputationRepository "../repositories/ReputationRepository";
 import Result "mo:base/Result";
 import Time "mo:base/Time";
 import Array "mo:base/Array";
 import Debug "mo:base/Debug";
+import Principal "mo:base/Principal";
+import T "../../domain/entities/Types";
 
 module {
     public class VerifyDocumentSourceUseCase(
         documentRepo : DocumentRepository.DocumentRepository,
         updateReputationUseCase : UpdateReputationUseCase.UpdateReputationUseCase,
+        reputationRepo : ReputationRepository.ReputationRepository,
     ) {
-        public func execute(documentId : Document.DocumentId, reviewer : Text) : async Result.Result<(), Text> {
+        public func execute(documentId : Document.DocumentId, reviewer : Principal) : async Result.Result<(), Text> {
             Debug.print("VerifyDocumentSourceUseCase: Verifying document with ID: " # debug_show (documentId));
             let documentResult = await documentRepo.getDocument(documentId);
             switch (documentResult) {
                 case (#ok(document)) {
                     Debug.print("VerifyDocumentSourceUseCase: Document found: " # debug_show (document));
+
                     // Check if the document has already been verified by this reviewer
                     let alreadyVerified = Array.find<Document.Review>(
                         document.verifiedBy,
                         func(review : Document.Review) : Bool {
-                            Debug.print("Comparing reviewer: " # review.reviewer # " with " # reviewer);
-                            review.reviewer == reviewer;
+                            Debug.print("Comparing reviewer: " # review.reviewer # " with " # Principal.toText(reviewer));
+                            review.reviewer == Principal.toText(reviewer);
                         },
                     );
 
@@ -34,13 +40,34 @@ module {
                             return #err("Document already verified by this reviewer");
                         };
                         case (null) {
+                            // Check if the reviewer has sufficient reputation in at least one of the document's categories
+                            var hasRequiredReputation = false;
+                            label a for (categoryId in document.categories.vals()) {
+                                let reputationResult = await reputationRepo.getReputation(reviewer, categoryId);
+                                Debug.print("VerifyDocumentSourceUseCase: reputationResult for categoryId: " # debug_show (categoryId) # ", result: " # debug_show (reputationResult));
+                                switch (reputationResult) {
+                                    case (?reputation) {
+                                        if (reputation.score >= T.REPUTATION_UPDATE_THRESHOLD) {
+                                            // Assume 10 is the minimum required reputation
+                                            hasRequiredReputation := true;
+                                            break a;
+                                        };
+                                    };
+                                    case (null) {};
+                                };
+                            };
+
+                            if (not hasRequiredReputation) {
+                                return #err("Reviewer does not have sufficient reputation in the document's categories");
+                            };
+
                             let sourceVerified = await verifySource(document.sourceUrl);
                             if (sourceVerified) {
-                                let reputationResult = await updateReputationUseCase.assignFullReputation(document.user, document.contentType);
+                                let reputationResult = await updateReputationUseCase.assignFullReputation(document.user, document.categories[0]);
                                 switch (reputationResult) {
                                     case (#ok(repValue)) {
                                         let newReview : Document.Review = {
-                                            reviewer = reviewer;
+                                            reviewer = Principal.toText(reviewer);
                                             date = Time.now();
                                             reputation = repValue;
                                         };
@@ -57,7 +84,7 @@ module {
                                         };
                                     };
                                     case (#err(e)) {
-                                        Debug.print("VerifyDocumentSourceUseCase: Failed to assign reputation: " # e);
+                                        Debug.print("VerifyDocumentSourceUseCase: Failed to assign full reputation: " # e);
                                         #err("Failed to assign full reputation: " # e);
                                     };
                                 };

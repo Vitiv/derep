@@ -22,5 +22,6 @@ module {
         updatedAt : Int;
         verifiedBy : [Review];
         previousVersion : ?DocumentId;
+        categories : [Text];
     };
 };

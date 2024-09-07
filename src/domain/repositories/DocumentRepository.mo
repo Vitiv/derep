@@ -10,5 +10,6 @@ module {
         deleteDocument : (Document.DocumentId) -> async Result.Result<(), Text>;
         listDocuments : (Principal) -> async Result.Result<[Document.Document], Text>;
         getDocumentVersions : (Document.DocumentId) -> async Result.Result<[Document.Document], Text>;
+        updateDocumentCategories : (Document.DocumentId, [Text]) -> async Result.Result<(), Text>;
     };
 };

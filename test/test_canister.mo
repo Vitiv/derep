@@ -14,12 +14,13 @@ import IncomingFile "../src/domain/entities/IncomingFile";
 actor class TestCanister() = Self {
     type ReputationActor = actor {
         uploadDocument : (IncomingFile.IncomingFile) -> async Result.Result<Document.DocumentId, Text>;
+        verifyDocumentSource : (Document.DocumentId, ?Principal) -> async Result.Result<(), Text>;
     };
 
     let reputationActorId : Text = "be2us-64aaa-aaaaa-qaabq-cai";
     let reputationActor : ReputationActor = actor (reputationActorId);
 
-    public shared func createTestDocument(userId : Principal, content : Text) : async Result.Result<Document.DocumentId, Text> {
+    public shared func createTestDocument(userId : Principal, content : Text, category : [Text]) : async Result.Result<Document.DocumentId, Text> {
         Debug.print("TestCanister: Creating test document for user " # Principal.toText(userId));
 
         let testDocument : IncomingFile.IncomingFile = {
@@ -28,6 +29,7 @@ actor class TestCanister() = Self {
             contentType = "text/plain";
             user = Principal.toText(userId);
             sourceUrl = ?"https://example.com/test";
+            categories = category;
         };
 
         try {
@@ -110,6 +112,19 @@ actor class TestCanister() = Self {
         Debug.print("TestCanister: Notifications received: " # Nat.toText(notifications.size()));
         for (notification in notifications.vals()) {
             Debug.print("TestCanister: Received event: " # debug_show (notification));
+        };
+    };
+
+    public shared func verifyDocumentSource(documentId : Document.DocumentId, reviewer : ?Principal) : async Result.Result<(), Text> {
+        Debug.print("TestCanister: Verifying document with ID: " # debug_show (documentId));
+
+        try {
+            let result = await reputationActor.verifyDocumentSource(documentId, reviewer);
+            Debug.print("TestCanister: Document verification result: " # debug_show (result));
+            result;
+        } catch (error) {
+            Debug.print("TestCanister: Error verifying document: " # Error.message(error));
+            #err("Failed to verify document: " # Error.message(error));
         };
     };
 };
