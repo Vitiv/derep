@@ -148,6 +148,9 @@ actor class TestReputationFlow() = this {
         // Step 17
         await testDocumentManagement();
 
+        // Step 18
+        await testDocumentCreationAndVerification();
+
         Debug.print("✅ ✅ ✅ All test cases completed successfully!");
     };
 
@@ -861,6 +864,61 @@ actor class TestReputationFlow() = this {
 
         Debug.print("✅ ✅ Test case 17: All Document Management tests passed successfully!");
     };
+
+    // Text 18
+    public func testDocumentCreationAndVerification() : async () {
+        Debug.print("Starting Test 18: Document Creation and Verification test");
+
+        // Create two test users
+        let user1 = Principal.fromText("bw4dl-smaaa-aaaaa-qaacq-cai");
+        let user2 = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+
+        // Ensure users are created in the system
+        ignore await ReputationActor.createUser({ id = user1; username = "User1"; registrationDate = Time.now() });
+        ignore await ReputationActor.createUser({ id = user2; username = "User2"; registrationDate = Time.now() });
+
+        // User1 creates a document
+            let createDocumentResult = await TestCanister.createTestDocument(user1, "This is a test document content.");
+            var documentId : Document.DocumentId = 0;
+            
+            switch (createDocumentResult) {
+                case (#ok(id)) {
+                    documentId := id;
+                    Debug.print("✅ Test 18: Test document created with ID: " # debug_show(documentId));
+                };
+                case (#err(e)) {
+                    Debug.print("❌ Test 18: Failed to create test document: " # e);
+                    assert(false);
+                };
+            };
+
+            // User2 verifies the document
+            let verificationResult = await ReputationActor.verifyDocumentSource(documentId);
+            switch (verificationResult) {
+                case (#ok(_)) {
+                    Debug.print("✅ Test 18: Document verified successfully");
+                };
+                case (#err(e)) {
+                    Debug.print("❌ Test 18: Failed to verify document: " # e);
+                    assert(false);
+                };
+            };
+
+            // Check User1's reputation
+            let reputationResult = await ReputationActor.getUserReputation(user1, "1.2.2"); // Assuming "1.2.2" is the default category
+            switch (reputationResult) {
+                case (#ok(reputation)) {
+                    Debug.print("✅ Test 18: User1's reputation: " # debug_show(reputation.score));
+                    assert(reputation.score == 11); // Expected reputation score to be 11
+                };
+                case (#err(e)) {
+                    Debug.print("❌ Test 18: Failed to get user reputation: " # e);
+                    assert(false);
+                };
+            };
+
+            Debug.print("✅ ✅ Test 18: Document Creation and Verification test completed successfully");
+        };
 
     private func assertReputation(userId : Principal, categoryId : Text, expectedScore : Int) : async Bool {
         let result = await ReputationActor.getUserReputation(userId, categoryId);
