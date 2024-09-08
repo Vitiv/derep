@@ -6,6 +6,9 @@ import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
 import Time "mo:base/Time";
+import Nat "mo:base/Nat";
+import Hash "mo:base/Hash";
+import Text "mo:base/Text";
 
 import InitialCategories "../data/datasources/InitialCategories";
 import NamespaceDictionary "../data/datasources/NamespaceDictionary";
@@ -495,6 +498,15 @@ actor class ReputationActor() = Self {
     //------------------------------------------- Stable part ----------------------------------------
 
     // System methods remain unchanged
+
+    stable var userState : [(Principal, User.User)] = [];
+    stable var documentState : [(Nat, Document.Document)] = [];
+    stable var reputationState : [((Principal, Category.CategoryId), Reputation.Reputation)] = [];
+    stable var categoryState : [(Category.CategoryId, Category.Category)] = [];
+    stable var notificationState : [(T.Namespace, [T.EventNotification])] = [];
+    stable var reputationHistoryState : [(Principal, [ReputationHistoryTypes.ReputationChange])] = [];
+    stable var namespaceMappingState : [(Text, [Category.CategoryId])] = [];
+
     system func preupgrade() {
         switch (verifierWhitelistRepo) {
             case (?repo) {
@@ -506,7 +518,61 @@ actor class ReputationActor() = Self {
             };
         };
         isInitialized := false;
+
+        switch (useCaseFactory) {
+            case (?factory) {
+                let userRepo = factory.getUserRepository();
+                let documentRepo = factory.getDocumentRepository();
+                let reputationRepo = factory.getReputationRepository();
+                let categoryRepo = factory.getCategoryRepository();
+                let notificationRepo = factory.getNotificationRepository();
+                let reputationHistoryRepo = factory.getReputationHistoryRepository();
+                let namespaceMappingRepo = factory.getNamespaceCategoryMappingRepository();
+
+                userState := Iter.toArray(userRepo.users.entries());
+                documentState := Iter.toArray(documentRepo.documents.entries());
+                reputationState := Iter.toArray(reputationRepo.reputations.entries());
+                categoryState := Iter.toArray(categoryRepo.categories.entries());
+                notificationState := Iter.toArray(notificationRepo.notificationMap.entries());
+                reputationHistoryState := Iter.toArray(reputationHistoryRepo.history.entries());
+                namespaceMappingState := Iter.toArray(namespaceMappingRepo.mappings.entries());
+            };
+            case (null) {};
+        };
+
+        isInitialized := false;
     };
 
-    system func postupgrade() {};
+    system func postupgrade() {
+        //Users
+        switch (useCaseFactory) {
+            case (?factory) {
+                let userRepo = factory.getUserRepository();
+                let documentRepo = factory.getDocumentRepository();
+                let reputationRepo = factory.getReputationRepository();
+                let categoryRepo = factory.getCategoryRepository();
+                let notificationRepo = factory.getNotificationRepository();
+                let reputationHistoryRepo = factory.getReputationHistoryRepository();
+                let namespaceMappingRepo = factory.getNamespaceCategoryMappingRepository();
+
+                userRepo.users := HashMap.fromIter<Principal, User.User>(userState.vals(), userState.size(), Principal.equal, Principal.hash);
+                documentRepo.documents := HashMap.fromIter<Nat, Document.Document>(documentState.vals(), documentState.size(), Nat.equal, Hash.hash);
+                reputationRepo.reputations := HashMap.fromIter<(Principal, Category.CategoryId), Reputation.Reputation>(reputationState.vals(), reputationState.size(), reputationRepo.keyEqual, reputationRepo.keyHash);
+                categoryRepo.categories := HashMap.fromIter<Category.CategoryId, Category.Category>(categoryState.vals(), categoryState.size(), Text.equal, Text.hash);
+                notificationRepo.notificationMap := HashMap.fromIter<T.Namespace, [T.EventNotification]>(notificationState.vals(), notificationState.size(), Text.equal, Text.hash);
+                reputationHistoryRepo.history := HashMap.fromIter<Principal, [ReputationHistoryTypes.ReputationChange]>(reputationHistoryState.vals(), reputationHistoryState.size(), Principal.equal, Principal.hash);
+                namespaceMappingRepo.mappings := HashMap.fromIter<Text, [Category.CategoryId]>(namespaceMappingState.vals(), namespaceMappingState.size(), Text.equal, Text.hash);
+
+                userState := [];
+                documentState := [];
+                reputationState := [];
+                categoryState := [];
+                notificationState := [];
+                reputationHistoryState := [];
+                namespaceMappingState := [];
+            };
+            case (null) {};
+        };
+
+    };
 };

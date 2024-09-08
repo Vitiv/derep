@@ -12,15 +12,15 @@ import Nat "mo:base/Nat";
 
 module {
     public class ReputationRepositoryImpl() {
-        private func keyEqual(k1 : (User.UserId, Category.CategoryId), k2 : (User.UserId, Category.CategoryId)) : Bool {
+        public func keyEqual(k1 : (User.UserId, Category.CategoryId), k2 : (User.UserId, Category.CategoryId)) : Bool {
             Principal.equal(k1.0, k2.0) and k1.1 == k2.1
         };
 
-        private func keyHash(k : (User.UserId, Category.CategoryId)) : Nat32 {
+        public func keyHash(k : (User.UserId, Category.CategoryId)) : Nat32 {
             Principal.hash(k.0) ^ Text.hash(k.1);
         };
 
-        private var reputations = HashMap.HashMap<(User.UserId, Category.CategoryId), Reputation.Reputation>(10, keyEqual, keyHash);
+        public var reputations = HashMap.HashMap<(User.UserId, Category.CategoryId), Reputation.Reputation>(10, keyEqual, keyHash);
 
         public func getReputation(userId : User.UserId, categoryId : Category.CategoryId) : async ?Reputation.Reputation {
             reputations.get((userId, categoryId));

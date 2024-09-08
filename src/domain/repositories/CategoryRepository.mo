@@ -1,7 +1,9 @@
 import Category "../entities/Category";
+import HashMap "mo:base/HashMap";
 
 module {
     public type CategoryRepository = {
+        var categories : HashMap.HashMap<Category.CategoryId, Category.Category>;
         createCategory : (Category.Category) -> async Bool;
         getCategory : (Category.CategoryId) -> async ?Category.Category;
         updateCategory : (Category.Category) -> async Bool;

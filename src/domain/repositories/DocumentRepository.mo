@@ -1,8 +1,10 @@
 import Document "../entities/Document";
 import Result "mo:base/Result";
+import HashMap "mo:base/HashMap";
 
 module {
     public type DocumentRepository = {
+        var documents : HashMap.HashMap<Document.DocumentId, Document.Document>;
         createDocument : (Document.Document) -> async Result.Result<Nat, Text>;
         getDocument : (Document.DocumentId) -> async Result.Result<Document.Document, Text>;
         updateDocument : (Document.Document) -> async Result.Result<Nat, Text>;

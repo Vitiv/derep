@@ -1,9 +1,14 @@
 import Reputation "../entities/Reputation";
 import User "../entities/User";
 import Category "../entities/Category";
+import HashMap "mo:base/HashMap";
 
 module {
     public type ReputationRepository = {
+        var reputations : HashMap.HashMap<(User.UserId, Category.CategoryId), Reputation.Reputation>;
+
+        keyEqual : ((User.UserId, Category.CategoryId), (User.UserId, Category.CategoryId)) -> Bool;
+        keyHash : ((User.UserId, Category.CategoryId)) -> Nat32;
         getReputation : (User.UserId, Category.CategoryId) -> async ?Reputation.Reputation;
         updateReputation : (Reputation.Reputation) -> async Bool;
         getUserReputations : (User.UserId) -> async [Reputation.Reputation];

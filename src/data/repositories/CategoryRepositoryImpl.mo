@@ -8,7 +8,7 @@ import Category "../../domain/entities/Category";
 
 module {
     public class CategoryRepositoryImpl() {
-        private var categories = HashMap.HashMap<Category.CategoryId, Category.Category>(10, Text.equal, Text.hash);
+        public var categories = HashMap.HashMap<Category.CategoryId, Category.Category>(10, Text.equal, Text.hash);
 
         public func createCategory(category : Category.Category) : async Bool {
             switch (categories.get(category.id)) {
