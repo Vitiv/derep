@@ -25,7 +25,29 @@ module {
                         name = "aVa projects";
                         description = "Projects related to aVa";
                         parentId = ?"1.2";
-                        subCategories = [];
+                        subCategories = [
+                            {
+                                id = "1.2.1.1";
+                                name = "aVa Reputation";
+                                description = "Decentralized Reputation";
+                                parentId = ?"1.2.1";
+                                subCategories = [];
+                            },
+                            {
+                                id = "1.2.1.2";
+                                name = "Event Hub";
+                                description = "Event Broadcaster";
+                                parentId = ?"1.2.1";
+                                subCategories = [];
+                            },
+                            {
+                                id = "1.2.1.3";
+                                name = "Attention DAO";
+                                description = "DAO for handling event broadcaster";
+                                parentId = ?"1.2.1";
+                                subCategories = [];
+                            },
+                        ];
                     },
                     {
                         id = "1.2.2";

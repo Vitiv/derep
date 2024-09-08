@@ -24,6 +24,13 @@ import ManageDocumentsUseCase "./ManageDocumentsUseCase";
 import ProcessIncomingFileUseCase "./ProcessIncomingFileUseCase";
 import VerifyDocumentSourceUseCase "./VerifyDocumentSourceUseCase";
 
+import VerifierWhitelistRepository "../repositories/VerifierWhitelistRepository";
+import VerifierWhitelistRepositoryImpl "../../data/repositories/VerifierWhitelistRepositoryImpl";
+import AddToWhitelistUseCase "./AddToWhitelistUseCase";
+import RemoveFromWhitelistUseCase "./RemoveFromWhitelistUseCase";
+import CheckWhitelistUseCase "./CheckWhitelistUseCase";
+import GetWhitelistUseCase "./GetWhitelistUseCase";
+
 module {
     public class UseCaseFactory(
         userRepo : UserRepository.UserRepository,
@@ -108,6 +115,10 @@ module {
             documentClassifier;
         };
 
+        public func getICRC72Client() : ICRC72Client.ICRC72ClientImpl {
+            icrc72Client;
+        };
+
         public func getNamespaceCategoryMappingRepository() : NamespaceCategoryMappingRepository.NamespaceCategoryMappingRepository {
             namespaceMappingRepo;
         };
@@ -122,6 +133,10 @@ module {
 
         public func getCategoryRepository() : CategoryRepository.CategoryRepository {
             categoryRepo;
+        };
+
+        public func getDocumentRepository() : DocumentRepository.DocumentRepository {
+            documentRepo;
         };
 
         public func getNotificationRepository() : NotificationRepository.NotificationRepository {
@@ -145,7 +160,30 @@ module {
                 documentRepo,
                 getUpdateReputationUseCase(),
                 reputationRepo,
+                getCheckWhitelistUseCase(),
             );
+        };
+
+        private let verifierWhitelistRepo : VerifierWhitelistRepository.VerifierWhitelistRepository = VerifierWhitelistRepositoryImpl.VerifierWhitelistRepositoryImpl();
+
+        public func getAddToWhitelistUseCase() : AddToWhitelistUseCase.AddToWhitelistUseCase {
+            AddToWhitelistUseCase.AddToWhitelistUseCase(verifierWhitelistRepo);
+        };
+
+        public func getRemoveFromWhitelistUseCase() : RemoveFromWhitelistUseCase.RemoveFromWhitelistUseCase {
+            RemoveFromWhitelistUseCase.RemoveFromWhitelistUseCase(verifierWhitelistRepo);
+        };
+
+        public func getCheckWhitelistUseCase() : CheckWhitelistUseCase.CheckWhitelistUseCase {
+            CheckWhitelistUseCase.CheckWhitelistUseCase(verifierWhitelistRepo);
+        };
+
+        public func getGetWhitelistUseCase() : GetWhitelistUseCase.GetWhitelistUseCase {
+            GetWhitelistUseCase.GetWhitelistUseCase(verifierWhitelistRepo);
+        };
+
+        public func getVerifierWhitelistRepository() : VerifierWhitelistRepository.VerifierWhitelistRepository {
+            verifierWhitelistRepo;
         };
     };
 };

@@ -2,6 +2,8 @@ import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
+import Iter "mo:base/Iter";
+import HashMap "mo:base/HashMap";
 
 import InitialCategories "../data/datasources/InitialCategories";
 import NamespaceDictionary "../data/datasources/NamespaceDictionary";
@@ -24,30 +26,41 @@ import NamespaceCategoryMapper "../domain/services/NamespaceCategoryMapper";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
 import ICRC72Client "../infrastructure/ICRC72Client";
 import APIHandler "./APIHandler";
+import VerifierWhitelistRepositoryImpl "../data/repositories/VerifierWhitelistRepositoryImpl";
 
 actor class ReputationActor() = Self {
+    private var useCaseFactory : ?UseCaseFactory.UseCaseFactory = null;
     private var apiHandler : ?APIHandler.APIHandler = null;
     private var icrc72Client : ?ICRC72Client.ICRC72ClientImpl = null;
+    private var verifierWhitelistRepo : ?VerifierWhitelistRepositoryImpl.VerifierWhitelistRepositoryImpl = null;
+
+    private stable var stableWhitelist : [(Principal, Bool)] = [];
 
     public shared func initialize() : async () {
+        Debug.print("Starting ReputationActor initialization...");
+
+        // Create repositories and services
         let userRepo = UserRepositoryImpl.UserRepositoryImpl();
         let reputationRepo = ReputationRepositoryImpl.ReputationRepositoryImpl();
         let categoryRepo = CategoryRepositoryImpl.CategoryRepositoryImpl();
+        let documentRepo = DocumentRepositoryImpl.DocumentRepositoryImpl();
         let notificationRepo = NotificationRepositoryImpl.NotificationRepositoryImpl();
         let reputationHistoryRepo = ReputationHistoryRepositoryImpl.ReputationHistoryRepositoryImpl();
         let namespaceMappingRepo = NamespaceCategoryMappingRepositoryImpl.NamespaceCategoryMappingRepositoryImpl();
-        let documentRepo = DocumentRepositoryImpl.DocumentRepositoryImpl();
-
-        let broadcaster = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // TODO: replace with actual broadcaster Principal
-        icrc72Client := ?ICRC72Client.ICRC72ClientImpl(broadcaster, Principal.fromActor(Self));
-
         let documentClassifier = DocumentClassifier.DocumentClassifier();
+
+        verifierWhitelistRepo := ?VerifierWhitelistRepositoryImpl.VerifierWhitelistRepositoryImpl();
+
+        // Create ICRC72Client
+        let broadcaster = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // Replace with actual broadcaster Principal
+        icrc72Client := ?ICRC72Client.ICRC72ClientImpl(broadcaster, Principal.fromActor(Self));
 
         let namespaceCategoryMapper = NamespaceCategoryMapper.NamespaceCategoryMapper(categoryRepo, namespaceMappingRepo, documentClassifier);
 
-        switch (icrc72Client) {
-            case (?client) {
-                let useCaseFactory = UseCaseFactory.UseCaseFactory(
+        // Create UseCaseFactory
+        switch (icrc72Client, verifierWhitelistRepo) {
+            case (?client, ?whitelistRepo) {
+                useCaseFactory := ?UseCaseFactory.UseCaseFactory(
                     userRepo,
                     reputationRepo,
                     categoryRepo,
@@ -60,49 +73,79 @@ actor class ReputationActor() = Self {
                     documentRepo,
                 );
 
-                apiHandler := ?APIHandler.APIHandler(useCaseFactory);
+                switch (useCaseFactory) {
+                    case (?factory) {
+                        // Initialize VerifierWhitelist
+                        whitelistRepo.whitelist := HashMap.fromIter<Principal, Bool>(stableWhitelist.vals(), 10, Principal.equal, Principal.hash);
+                        stableWhitelist := [];
 
-                // Initialize categories
-                Debug.print("ReputationActor.initialize: Starting category initialization...");
-                let flatCategories = InitialCategories.flattenCategories(InitialCategories.initialCategories);
-                for (category in flatCategories.vals()) {
-                    switch (await categoryRepo.getCategory(category.id)) {
-                        case (null) {
-                            let result = await categoryRepo.createCategory(category);
-                            if (result) {
-                                Debug.print("Category created: " # category.id);
-                            } else {
-                                Debug.print("Failed to create category: " # category.id);
+                        // Add the main actor's ID to the whitelist if it's not already there
+                        switch (whitelistRepo.whitelist.get(Principal.fromActor(Self))) {
+                            case (null) {
+                                whitelistRepo.whitelist.put(Principal.fromActor(Self), true);
+                                Debug.print("Added main actor to whitelist");
+                            };
+                            case (?_) {
+                                Debug.print("Main actor already in whitelist");
                             };
                         };
-                        case (?existingCategory) {
-                            Debug.print("Category already exists: " # existingCategory.id);
+
+                        // Add the main actor's ID to the whitelist if it's not already there
+                        let checkWhitelistUseCase = factory.getCheckWhitelistUseCase();
+                        let addToWhitelistUseCase = factory.getAddToWhitelistUseCase();
+                        if (not (await checkWhitelistUseCase.execute(Principal.fromActor(Self)))) {
+                            ignore await addToWhitelistUseCase.execute(Principal.fromActor(Self));
+                            Debug.print("Added main actor to whitelist");
                         };
+
+                        apiHandler := ?APIHandler.APIHandler(factory);
+
+                        // Subscribe to reputation update events
+                        ignore await client.subscribe(T.UPDATE_REPUTATION_NAMESPACE);
+                        Debug.print("Subscribed to " # T.UPDATE_REPUTATION_NAMESPACE);
+
+                        // Initialize categories
+                        Debug.print("ReputationActor.initialize: Starting category initialization...");
+                        let flatCategories = InitialCategories.flattenCategories(InitialCategories.initialCategories);
+                        for (category in flatCategories.vals()) {
+                            switch (await categoryRepo.getCategory(category.id)) {
+                                case (null) {
+                                    let result = await categoryRepo.createCategory(category);
+                                    if (result) {
+                                        Debug.print("Category created: " # category.id);
+                                    } else {
+                                        Debug.print("Failed to create category: " # category.id);
+                                    };
+                                };
+                                case (?existingCategory) {
+                                    Debug.print("Category already exists: " # existingCategory.id);
+                                };
+                            };
+                        };
+                        Debug.print("ReputationActor.initialize: Category initialization completed");
+
+                        // Initialize predefined namespace-category mappings
+                        Debug.print("ReputationActor.initialize: Starting namespace-category mapping initialization...");
+                        for ((namespace, categoryId) in NamespaceDictionary.initialMappings.vals()) {
+                            let result = await namespaceMappingRepo.addNamespaceCategoryMapping(namespace, categoryId);
+                            if (result) {
+                                Debug.print("Mapping added: " # namespace # " -> " # categoryId);
+                            } else {
+                                Debug.print("Failed to add mapping: " # namespace # " -> " # categoryId);
+                            };
+                        };
+                        Debug.print("ReputationActor.initialize: Namespace-category mapping initialization completed");
+
+                    };
+                    case (null) {
+                        Debug.print("Failed to create UseCaseFactory");
                     };
                 };
-                Debug.print("ReputationActor.initialize: Category initialization completed");
-
-                // Initialize predefined namespace-category mappings
-                Debug.print("ReputationActor.initialize: Starting namespace-category mapping initialization...");
-                for ((namespace, categoryId) in NamespaceDictionary.initialMappings.vals()) {
-                    let result = await namespaceMappingRepo.addNamespaceCategoryMapping(namespace, categoryId);
-                    if (result) {
-                        Debug.print("Mapping added: " # namespace # " -> " # categoryId);
-                    } else {
-                        Debug.print("Failed to add mapping: " # namespace # " -> " # categoryId);
-                    };
-                };
-                Debug.print("ReputationActor.initialize: Namespace-category mapping initialization completed");
-
-                // Subscribe to reputation update events
-                ignore await client.subscribe(T.UPDATE_REPUTATION_NAMESPACE);
-                Debug.print("ReputationActor.initialize: Subscribed to " # T.UPDATE_REPUTATION_NAMESPACE);
-
             };
-            case (null) {
-                Debug.print("ReputationActor.initialize: ICRC72 client not initialized, initialization failed");
-            };
+            case (_, _) Debug.print("Failed to initialize ICRC72Client");
         };
+
+        Debug.print("ReputationActor initialization completed successfully");
     };
 
     public shared func updateReputation(user : Principal, category : Text, value : Int) : async Result.Result<Int, Text> {
@@ -389,12 +432,68 @@ actor class ReputationActor() = Self {
         };
     };
 
-    // System methods remain unchanged
-    system func preupgrade() {
-        // Implement state preservation logic if needed
+    //--------------------------------------------- Whitelist--------------------------------------
+    public shared ({ caller }) func addVerifierToWhitelist(verifier : Principal) : async Result.Result<(), Text> {
+        // assert (caller == Principal.fromActor(Self) or (await isVerifierWhitelisted(caller)));
+        switch (useCaseFactory) {
+            case (?factory) {
+                let addToWhitelistUseCase = factory.getAddToWhitelistUseCase();
+                await addToWhitelistUseCase.execute(verifier);
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
+        };
     };
 
-    system func postupgrade() {
-        // Implement state restoration logic if needed
+    public shared ({ caller }) func removeVerifierFromWhitelist(verifier : Principal) : async Result.Result<(), Text> {
+        assert (caller == Principal.fromActor(Self));
+        switch (useCaseFactory) {
+            case (?factory) {
+                let removeFromWhitelistUseCase = factory.getRemoveFromWhitelistUseCase();
+                await removeFromWhitelistUseCase.execute(verifier);
+            };
+            case (null) {
+                #err("UseCaseFactory not initialized");
+            };
+        };
     };
+
+    public func isVerifierWhitelisted(verifier : Principal) : async Bool {
+        switch (useCaseFactory) {
+            case (?factory) {
+                let checkWhitelistUseCase = factory.getCheckWhitelistUseCase();
+                await checkWhitelistUseCase.execute(verifier);
+            };
+            case (null) {
+                false;
+            };
+        };
+    };
+
+    public func getWhitelistedVerifiers() : async [Principal] {
+        switch (useCaseFactory) {
+            case (?factory) {
+                let getWhitelistUseCase = factory.getGetWhitelistUseCase();
+                await getWhitelistUseCase.execute();
+            };
+            case (null) { [] };
+        };
+    };
+    //------------------------------------------- Stable part ----------------------------------------
+
+    // System methods remain unchanged
+    system func preupgrade() {
+        switch (verifierWhitelistRepo) {
+            case (?repo) {
+                stableWhitelist := Iter.toArray(repo.whitelist.entries());
+                // Debug.print("Saved whitelist state for upgrade: " # debug_show (stableWhitelist));
+            };
+            case (null) {
+                // Debug.print("VerifierWhitelistRepository not available, cannot save whitelist state");
+            };
+        };
+    };
+
+    system func postupgrade() {};
 };

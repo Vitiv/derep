@@ -8,15 +8,24 @@ import Array "mo:base/Array";
 import Debug "mo:base/Debug";
 import Principal "mo:base/Principal";
 import T "../../domain/entities/Types";
+import CheckWhitelistUseCase "./CheckWhitelistUseCase";
 
 module {
     public class VerifyDocumentSourceUseCase(
         documentRepo : DocumentRepository.DocumentRepository,
         updateReputationUseCase : UpdateReputationUseCase.UpdateReputationUseCase,
         reputationRepo : ReputationRepository.ReputationRepository,
+        checkWhitelistUseCase : CheckWhitelistUseCase.CheckWhitelistUseCase,
     ) {
         public func execute(documentId : Document.DocumentId, reviewer : Principal) : async Result.Result<(), Text> {
             Debug.print("VerifyDocumentSourceUseCase: Verifying document with ID: " # debug_show (documentId));
+
+            // Check if the reviewer is in the whitelist
+            let isWhitelisted = await checkWhitelistUseCase.execute(reviewer);
+            if (not isWhitelisted) {
+                return #err("Reviewer is not in the whitelist of authorized verifiers");
+            };
+
             let documentResult = await documentRepo.getDocument(documentId);
             switch (documentResult) {
                 case (#ok(document)) {

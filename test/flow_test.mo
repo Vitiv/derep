@@ -86,6 +86,15 @@ actor class TestReputationFlow() = this {
         await createUserIfNotExists({ id = testUserId; username = "TestUser1"; registrationDate = Time.now() });
         await createUserIfNotExists({ id = testUserId2; username = "TestUser2"; registrationDate = Time.now() });
         Debug.print("✅ Step 4: Test users created or verified");
+
+         // Step 4-2: Add test users to the whitelist
+        await addVerifierToWhitelist(testUserId);
+        await addVerifierToWhitelist(testUserId2);
+        await addVerifierToWhitelist(Principal.fromText("aaaaa-aa")); 
+        await addVerifierToWhitelist(Principal.fromActor(this));
+
+        Debug.print("✅ Step 4: Test users added to the whitelist");
+
         // Step 5: Update reputations for users in different categories
         await updateReputation(testUserId, testCategoryId1, 10);
         await updateReputation(testUserId, testCategoryId2, 20);
@@ -156,6 +165,9 @@ actor class TestReputationFlow() = this {
 
         // Step 20
         await testDocumentCategoryUpdate();
+
+        // Step 21
+        await testDocumentVerificationWithWhitelist();
 
         Debug.print("✅ ✅ ✅ All test cases completed successfully!");
     };
@@ -672,7 +684,7 @@ actor class TestReputationFlow() = this {
                     };
                     case (#err(e)) {
                         Debug.print("❌ Test 17-6: Failed to verify document: " # e);
-                        // assert(false);
+                        assert(false);
                     };
                 };
             };
@@ -1074,6 +1086,67 @@ actor class TestReputationFlow() = this {
         Debug.print("✅ ✅ Test 20: Document Category Update test completed successfully");
     };
 
+    // Test 21
+
+    private func testDocumentVerificationWithWhitelist() : async () {
+        Debug.print("Test 21: Starting Document Verification with Whitelist test");
+
+        let whitelistedUser = Principal.fromText("bw4dl-smaaa-aaaaa-qaacq-cai");
+        let nonWhitelistedUser = Principal.fromText("k2t6j-2nvnp-4zjm3-25dtz-6xhaa-c7boj-5gayf-oj3xs-i43lp-teztq-6ae");
+
+        // Ensure users are created in the system
+        ignore await ReputationActor.createUser({ id = whitelistedUser; username = "WhitelistedUser"; registrationDate = Time.now() });
+        ignore await ReputationActor.createUser({ id = nonWhitelistedUser; username = "NonWhitelistedUser"; registrationDate = Time.now() });
+
+        // Add whitelistedUser to the whitelist
+        await addVerifierToWhitelist(whitelistedUser);
+
+        // Give both users some reputation
+        await updateReputation(whitelistedUser, T.DEFAULT_CATEGORY_CODE, 50);
+        await updateReputation(nonWhitelistedUser, T.DEFAULT_CATEGORY_CODE, 50);
+
+        // Create a test document
+        let createDocumentResult = await TestCanister.createTestDocument(whitelistedUser, "This is a test document for whitelist verification.", []);
+        var documentId : Document.DocumentId = 0;
+        
+        switch (createDocumentResult) {
+            case (#ok(id)) {
+                documentId := id;
+                Debug.print("✅ Test 21-1: document created with ID: " # debug_show(documentId));
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 21-1: Failed to create test document: " # e);
+                assert(false);
+            };
+        };
+
+        // Attempt verification with whitelisted user
+        let whitelistedVerificationResult = await ReputationActor.verifyDocumentSource(documentId, ?whitelistedUser);
+        switch (whitelistedVerificationResult) {
+            case (#ok(_)) {
+                Debug.print("✅ Test 21-2: Whitelisted user successfully verified the document");
+            };
+            case (#err(e)) {
+                Debug.print("❌ Test 21-2: Whitelisted user failed to verify the document: " # e);
+                assert(false);
+            };
+        };
+
+        // Attempt verification with non-whitelisted user
+        let nonWhitelistedVerificationResult = await ReputationActor.verifyDocumentSource(documentId, ?nonWhitelistedUser);
+        switch (nonWhitelistedVerificationResult) {
+            case (#ok(_)) {
+                Debug.print("❌ Test 21-3: Non-whitelisted user should not be able to verify the document");
+                assert(false);
+            };
+            case (#err(e)) {
+                Debug.print("✅ Test 21-3: Non-whitelisted user correctly failed to verify document: " # e);
+            };
+        };
+
+        Debug.print("✅ ✅Test 21: Document Verification with Whitelist test completed successfully");
+    };
+
     private func assertReputation(userId : Principal, categoryId : Text, expectedScore : Int) : async Bool {
         let result = await ReputationActor.getUserReputation(userId, categoryId);
         switch (result) {
@@ -1085,6 +1158,19 @@ actor class TestReputationFlow() = this {
             case (#err(e)) {
                 Debug.print("Failed to get reputation: " # e);
                 false;
+            };
+        };
+    };
+
+    private func addVerifierToWhitelist(userId : Principal) : async () {
+        let result = await ReputationActor.addVerifierToWhitelist(userId);
+        switch (result) {
+            case (#ok(_)) {
+                Debug.print("User added to whitelist: " # Principal.toText(userId));
+            };
+            case (#err(e)) {
+                Debug.print("Failed to add user to whitelist: " # e);
+                // assert(false);
             };
         };
     };
