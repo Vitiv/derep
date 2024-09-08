@@ -3,6 +3,14 @@
     "derep": {
       "main": "src/presentation/ReputationActor.mo",
       "type": "motoko"
+    },
+    "test": {
+      "main": "test/test_canister.mo",
+      "type": "motoko"
+    },
+    "flow": {
+      "main": "test/flow_test.mo",
+      "type": "motoko"
     }
   },
   "defaults": {

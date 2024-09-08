@@ -23,7 +23,7 @@ The aVa Reputation System is a decentralized reputation management solution buil
 1. Clone the repository:
    
 ```
-git clone https://github.com/your-username/ava-reputation-system.git
+git clone https://github.com/Vitiv/derep
 cd ava-reputation-system
 ```
 

@@ -71,7 +71,7 @@ actor class ReputationActor() = Self {
         verifierWhitelistRepo := ?VerifierWhitelistRepositoryImpl.VerifierWhitelistRepositoryImpl();
 
         // Create ICRC72Client
-        let broadcaster = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai"); // Replace with actual broadcaster Principal
+        let broadcaster = Principal.fromText("rvrj4-pyaaa-aaaal-ajluq-cai"); // Replace with actual broadcaster Principal
         icrc72Client := ?ICRC72Client.ICRC72ClientImpl(broadcaster, Principal.fromActor(Self));
 
         let namespaceCategoryMapper = NamespaceCategoryMapper.NamespaceCategoryMapper(categoryRepo, namespaceMappingRepo, documentClassifier);
@@ -288,22 +288,22 @@ actor class ReputationActor() = Self {
         };
     };
 
-    public func clearAllData() : async Result.Result<(), Text> {
-        switch (apiHandler) {
-            case (?handler) {
-                let result = await handler.clearAllData();
-                switch (result) {
-                    case (#ok(_)) {
-                        // Reinitialize categories after clearing
-                        await initialize();
-                    };
-                    case (#err(_)) {};
-                };
-                result;
-            };
-            case (null) { #err("API Handler not initialized") };
-        };
-    };
+    // public func clearAllData() : async Result.Result<(), Text> {
+    //     switch (apiHandler) {
+    //         case (?handler) {
+    //             let result = await handler.clearAllData();
+    //             switch (result) {
+    //                 case (#ok(_)) {
+    //                     // Reinitialize categories after clearing
+    //                     await initialize();
+    //                 };
+    //                 case (#err(_)) {};
+    //             };
+    //             result;
+    //         };
+    //         case (null) { #err("API Handler not initialized") };
+    //     };
+    // };
 
     public func icrc72_handle_notification(notifications : [T.EventNotification]) : async () {
         switch (apiHandler) {

@@ -27,3 +27,4 @@ restart_test.sh
 
 .mops
 mops.toml
+canister_ids.json
