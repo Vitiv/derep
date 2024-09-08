@@ -1,9 +1,11 @@
 import Debug "mo:base/Debug";
 import Error "mo:base/Error";
+import HashMap "mo:base/HashMap";
+import Iter "mo:base/Iter";
+import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
-import Iter "mo:base/Iter";
-import HashMap "mo:base/HashMap";
+import Time "mo:base/Time";
 
 import InitialCategories "../data/datasources/InitialCategories";
 import NamespaceDictionary "../data/datasources/NamespaceDictionary";
@@ -14,6 +16,7 @@ import NotificationRepositoryImpl "../data/repositories/NotificationRepositoryIm
 import ReputationHistoryRepositoryImpl "../data/repositories/ReputationHistoryRepositoryImpl";
 import ReputationRepositoryImpl "../data/repositories/ReputationRepositoryImpl";
 import UserRepositoryImpl "../data/repositories/UserRepositoryImpl";
+import VerifierWhitelistRepositoryImpl "../data/repositories/VerifierWhitelistRepositoryImpl";
 import Category "../domain/entities/Category";
 import Document "../domain/entities/Document";
 import IncomingFile "../domain/entities/IncomingFile";
@@ -26,13 +29,29 @@ import NamespaceCategoryMapper "../domain/services/NamespaceCategoryMapper";
 import UseCaseFactory "../domain/use_cases/UseCaseFactory";
 import ICRC72Client "../infrastructure/ICRC72Client";
 import APIHandler "./APIHandler";
-import VerifierWhitelistRepositoryImpl "../data/repositories/VerifierWhitelistRepositoryImpl";
 
 actor class ReputationActor() = Self {
     private var useCaseFactory : ?UseCaseFactory.UseCaseFactory = null;
     private var apiHandler : ?APIHandler.APIHandler = null;
     private var icrc72Client : ?ICRC72Client.ICRC72ClientImpl = null;
     private var verifierWhitelistRepo : ?VerifierWhitelistRepositoryImpl.VerifierWhitelistRepositoryImpl = null;
+
+    stable var isInitialized : Bool = false;
+
+    system func timer(setGlobalTimer : Nat64 -> ()) : async () {
+        var next = Nat64.fromIntWrap(Time.now()) + 100_000_000_000;
+        setGlobalTimer(next);
+        if (not isInitialized) {
+            isInitialized := true;
+            await initialize();
+        } else {
+            let maxDuration : Nat64 = 18_446_744_073_709_551_614;
+            let currentTime : Nat64 = Nat64.fromIntWrap(Time.now());
+            let next : Nat64 = Nat64.sub(maxDuration, currentTime);
+            setGlobalTimer(next);
+            Debug.print("Init timer stopped.");
+        };
+    };
 
     private stable var stableWhitelist : [(Principal, Bool)] = [];
 
@@ -80,23 +99,16 @@ actor class ReputationActor() = Self {
                         stableWhitelist := [];
 
                         // Add the main actor's ID to the whitelist if it's not already there
-                        switch (whitelistRepo.whitelist.get(Principal.fromActor(Self))) {
-                            case (null) {
-                                whitelistRepo.whitelist.put(Principal.fromActor(Self), true);
-                                Debug.print("Added main actor to whitelist");
-                            };
-                            case (?_) {
-                                Debug.print("Main actor already in whitelist");
-                            };
-                        };
-
-                        // Add the main actor's ID to the whitelist if it's not already there
                         let checkWhitelistUseCase = factory.getCheckWhitelistUseCase();
                         let addToWhitelistUseCase = factory.getAddToWhitelistUseCase();
                         if (not (await checkWhitelistUseCase.execute(Principal.fromActor(Self)))) {
                             ignore await addToWhitelistUseCase.execute(Principal.fromActor(Self));
                             Debug.print("Added main actor to whitelist");
                         };
+
+                        // TODO remove
+                        ignore await addToWhitelistUseCase.execute(Principal.fromText("oa7ab-4elxo-r5ooc-a23ga-lheml-we4wg-z5iuo-ery2n-57uyv-u234p-pae"));
+                        ignore await addToWhitelistUseCase.execute(Principal.fromText("bs3e6-4i343-voosn-wogd7-6kbdg-mctak-hn3ws-k7q7f-fye2e-uqeyh-yae"));
 
                         apiHandler := ?APIHandler.APIHandler(factory);
 
@@ -434,7 +446,7 @@ actor class ReputationActor() = Self {
 
     //--------------------------------------------- Whitelist--------------------------------------
     public shared ({ caller }) func addVerifierToWhitelist(verifier : Principal) : async Result.Result<(), Text> {
-        // assert (caller == Principal.fromActor(Self) or (await isVerifierWhitelisted(caller)));
+        assert (caller == Principal.fromActor(Self) or (await isVerifierWhitelisted(caller)));
         switch (useCaseFactory) {
             case (?factory) {
                 let addToWhitelistUseCase = factory.getAddToWhitelistUseCase();
@@ -493,6 +505,7 @@ actor class ReputationActor() = Self {
                 // Debug.print("VerifierWhitelistRepository not available, cannot save whitelist state");
             };
         };
+        isInitialized := false;
     };
 
     system func postupgrade() {};
