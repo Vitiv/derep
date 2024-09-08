@@ -14,7 +14,7 @@ The aVa Reputation System is a decentralized reputation management solution buil
 - Integration with ICRC-72 for event handling
 
 ## Getting Started
-###Prerequisites
+### Prerequisites
 
 - Dfinity's dfx CLI tool
 
@@ -24,7 +24,7 @@ The aVa Reputation System is a decentralized reputation management solution buil
    
 ```
 git clone https://github.com/Vitiv/derep
-cd ava-reputation-system
+cd derep
 ```
 
 2. Deploy:
